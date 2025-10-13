@@ -1,0 +1,5 @@
+{
+  "name": "SmartMoney",
+  "description": "A smart financial tracker app that allows users to view, track, and analyze their spending and income automatically in real time with AI-driven insights.",
+  "requestFramePermissions": []
+}

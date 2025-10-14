@@ -22,7 +22,6 @@ const CategoryPieChart: React.FC<CategoryPieChartProps> = ({ transactions, onSli
 
         return Object.entries(expenseByCategory)
             .map(([name, value]) => ({ name, value }))
-            // Fix: Explicitly type sort arguments to resolve potential type inference issues.
             .sort((a: CategoryData, b: CategoryData) => b.value - a.value);
     }, [transactions]);
     

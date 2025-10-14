@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { Sidebar } from './components/Sidebar';
 import Dashboard from './components/Dashboard';
 import Transactions from './components/Transactions';
@@ -9,30 +9,130 @@ import Login from './components/Login';
 import AddEditTransactionModal from './components/modals/AddEditTransactionModal';
 import { ThemeProvider } from './components/ThemeProvider';
 import { CurrencyProvider } from './contexts/CurrencyContext';
-import { View, Transaction, Account, Budget, TransactionCategory } from './types';
-import { mockTransactions, mockAccounts, mockBudget } from './constants';
-import { useMockRealTimeData } from './hooks/useMockRealTimeData';
+import { UserProvider, useUser } from './contexts/UserContext';
+import { View, Transaction, Account, Budget, TransactionCategory, Profile as ProfileData } from './types';
+import { SmartMoneyDB, getDbForUser, fromDBAccount, toDBAccount } from './services/db';
+import { SpinnerIcon } from './components/icons/Icons';
+import OfflineIndicator from './components/ui/OfflineIndicator';
 
-const App: React.FC = () => {
-    const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+const AppContent: React.FC = () => {
+    const { currentUser, login, register, logout, updateUser } = useUser();
+    const [userDb, setUserDb] = useState<SmartMoneyDB | null>(null);
+    const [isConnecting, setIsConnecting] = useState(true);
+    const [isOffline, setIsOffline] = useState(!navigator.onLine);
+
     const [activeView, setActiveView] = useState<View>(View.Dashboard);
     
     // State Management
     const [transactions, setTransactions] = useState<Transaction[]>([]);
     const [accounts, setAccounts] = useState<Account[]>([]);
     const [budget, setBudget] = useState<Budget>({});
+    const [profile, setProfile] = useState<ProfileData | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
     const [chartFilter, setChartFilter] = useState<{ type: 'date' | 'category' | null, value: string | null }>({ type: null, value: null });
 
-    const handleLogin = () => {
-        setTransactions(mockTransactions);
-        setAccounts(mockAccounts);
-        setBudget(mockBudget);
-        setIsAuthenticated(true);
+    useEffect(() => {
+        const handleOffline = () => setIsOffline(true);
+        const handleOnline = () => setIsOffline(false);
+
+        window.addEventListener('offline', handleOffline);
+        window.addEventListener('online', handleOnline);
+
+        return () => {
+            window.removeEventListener('offline', handleOffline);
+            window.removeEventListener('online', handleOnline);
+        };
+    }, []);
+
+    const fetchData = useCallback(async () => {
+        if (!userDb || !currentUser) return;
+        
+        setIsConnecting(true);
+        const [dbTransactions, dbAccounts, dbBudgetItems, dbProfile] = await Promise.all([
+            userDb.transactions.toArray(),
+            userDb.accounts.toArray(),
+            userDb.budget.toArray(),
+            userDb.profiles.get(currentUser.username)
+        ]);
+        
+        setTransactions(dbTransactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+        setAccounts(dbAccounts.map(fromDBAccount));
+        setProfile(dbProfile || null);
+
+        const budgetObject = dbBudgetItems.reduce((acc, item) => {
+            acc[item.category] = item.amount;
+            return acc;
+        }, {} as Budget);
+        setBudget(budgetObject);
+        setIsConnecting(false);
+    }, [userDb, currentUser]);
+
+    // Effect to initialize DB connection when user logs in
+    useEffect(() => {
+        const connectToDb = async () => {
+            if (currentUser) {
+                setIsConnecting(true);
+                const db = getDbForUser(currentUser.username);
+                // Dexie's lazy-opening means we don't strictly need db.open(),
+                // but it can be useful for explicitly catching connection errors early.
+                await db.open();
+                setUserDb(db);
+            } else {
+                setUserDb(null);
+                setIsConnecting(false);
+            }
+        };
+        connectToDb();
+    }, [currentUser]);
+
+    // Effect to fetch data when DB connection is established
+    useEffect(() => {
+        if (userDb) {
+            fetchData();
+        } else {
+            // Clear data on logout
+            setTransactions([]);
+            setAccounts([]);
+            setBudget({});
+            setProfile(null);
+        }
+    }, [userDb, fetchData]);
+
+    const handleLogout = () => {
+        logout();
     };
 
-    useMockRealTimeData(isAuthenticated, setTransactions);
+    const handleUpdateProfile = useCallback(async (newUsername: string, profileDetails: Omit<ProfileData, 'username'>) => {
+        if (!currentUser || !userDb) {
+            throw new Error("No user is logged in or database is not connected.");
+        }
+    
+        const currentUsername = currentUser.username;
+    
+        // 1. Save non-username profile details to the current database.
+        const profileData: ProfileData = {
+            username: currentUsername,
+            ...profileDetails,
+        };
+        await userDb.profiles.put(profileData);
+        setProfile(profileData);
+    
+        // 2. If the username has changed, call the context's updateUser function.
+        // This will handle renaming the database and all its data, then reload the app.
+        const trimmedNewUsername = newUsername.trim();
+        if (trimmedNewUsername !== currentUsername) {
+            try {
+                await updateUser(trimmedNewUsername);
+                // updateUser will cause a page reload, so no further action is needed here.
+            } catch (error) {
+                // If the username update fails, re-throw the error so the UI can catch it.
+                console.error("Username update failed:", error);
+                throw error;
+            }
+        }
+    }, [currentUser, userDb, updateUser]);
 
     const handleOpenAddModal = () => {
         setEditingTransaction(null);
@@ -49,50 +149,67 @@ const App: React.FC = () => {
         setEditingTransaction(null);
     }, []);
 
-    const handleSaveTransaction = useCallback((transaction: Omit<Transaction, 'id' | 'source'>) => {
+    const handleSaveTransaction = useCallback(async (transaction: Omit<Transaction, 'id' | 'source'>) => {
+        if (!userDb) return;
         if (editingTransaction) {
             // Edit existing transaction
-            setTransactions(prev => prev.map(t => t.id === editingTransaction.id ? { ...editingTransaction, ...transaction } : t));
+            const updatedTransaction = { ...editingTransaction, ...transaction };
+            await userDb.transactions.put(updatedTransaction);
         } else {
             // Add new transaction
             const newTransaction: Transaction = {
                 ...transaction,
-                id: `manual-${Date.now()}`,
+                id: `manual-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`,
                 source: 'Manual',
             };
-            setTransactions(prev => [newTransaction, ...prev]);
+            await userDb.transactions.add(newTransaction);
         }
+        await fetchData();
         handleCloseModal();
-    }, [editingTransaction, handleCloseModal]);
+    }, [userDb, editingTransaction, handleCloseModal, fetchData]);
     
-    const handleAddTransaction = useCallback((transaction: Omit<Transaction, 'id' | 'source'>) => {
+    const handleAddTransaction = useCallback(async (transaction: Omit<Transaction, 'id' | 'source'>) => {
+        if (!userDb) return;
         const newTransaction: Transaction = {
             ...transaction,
-            id: `manual-${Date.now()}`,
+            id: `manual-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`,
             source: 'Manual',
         };
-        setTransactions(prev => [newTransaction, ...prev]);
-    }, []);
+        await userDb.transactions.add(newTransaction);
+        await fetchData();
+    }, [userDb, fetchData]);
 
-    const handleDeleteTransaction = useCallback((transactionId: string) => {
-        setTransactions(prev => prev.filter(t => t.id !== transactionId));
-    }, []);
+    const handleDeleteTransaction = useCallback(async (transactionId: string) => {
+        if (!userDb) return;
+        await userDb.transactions.delete(transactionId);
+        await fetchData();
+    }, [userDb, fetchData]);
 
-    const handleBulkDeleteTransactions = useCallback((transactionIds: string[]) => {
-        setTransactions(prev => prev.filter(t => !transactionIds.includes(t.id)));
-    }, []);
+    const handleBulkDeleteTransactions = useCallback(async (transactionIds: string[]) => {
+        if (!userDb) return;
+        await userDb.transactions.bulkDelete(transactionIds);
+        await fetchData();
+    }, [userDb, fetchData]);
 
-    const handleBulkCategorizeTransactions = useCallback((transactionIds: string[], category: TransactionCategory) => {
-        setTransactions(prev => prev.map(t => transactionIds.includes(t.id) ? { ...t, category } : t));
-    }, []);
+    const handleBulkCategorizeTransactions = useCallback(async (transactionIds: string[], category: TransactionCategory) => {
+        if (!userDb) return;
+        const transactionsToUpdate = await userDb.transactions.where('id').anyOf(transactionIds).toArray();
+        const updatedTransactions = transactionsToUpdate.map(t => ({ ...t, category }));
+        await userDb.transactions.bulkPut(updatedTransactions);
+        await fetchData();
+    }, [userDb, fetchData]);
 
-    const handleLinkAccount = useCallback((account: Account) => {
-        setAccounts(prev => [...prev, account]);
-    }, []);
+    const handleLinkAccount = useCallback(async (account: Account) => {
+        if (!userDb) return;
+        await userDb.accounts.add(toDBAccount(account));
+        await fetchData();
+    }, [userDb, fetchData]);
 
-    const handleUnlinkAccount = useCallback((accountId: string) => {
-        setAccounts(prev => prev.filter(acc => acc.id !== accountId));
-    }, []);
+    const handleUnlinkAccount = useCallback(async (accountId: string) => {
+        if (!userDb) return;
+        await userDb.accounts.delete(accountId);
+        await fetchData();
+    }, [userDb, fetchData]);
 
     const handleSetChartFilter = useCallback((type: 'date' | 'category', value: string) => {
         setChartFilter({ type, value });
@@ -103,12 +220,13 @@ const App: React.FC = () => {
         setChartFilter({ type: null, value: null });
     }, []);
 
-    const handleSetBudget = useCallback((category: TransactionCategory, amount: number) => {
-        setBudget(prev => ({
-            ...prev,
-            [category]: amount,
-        }));
-    }, []);
+
+
+    const handleSetBudget = useCallback(async (category: TransactionCategory, amount: number) => {
+        if (!userDb) return;
+        await userDb.budget.put({ category, amount });
+        await fetchData();
+    }, [userDb, fetchData]);
 
 
     const mainContent = useMemo(() => {
@@ -139,21 +257,29 @@ const App: React.FC = () => {
             case View.Settings:
                 return <Settings linkedAccounts={accounts} onLinkAccount={handleLinkAccount} onUnlinkAccount={handleUnlinkAccount} />;
             case View.Profile:
-                return <Profile transactionsCount={transactions.length} />;
+                return <Profile currentUser={currentUser!} profile={profile} transactionsCount={transactions.length} onUpdateProfile={handleUpdateProfile} />;
             default:
                 return <Dashboard {...dashboardProps} />;
         }
-    }, [activeView, transactions, accounts, budget, handleDeleteTransaction, handleLinkAccount, handleUnlinkAccount, handleSetChartFilter, chartFilter, handleClearChartFilter, handleAddTransaction, handleSetBudget, handleBulkDeleteTransactions, handleBulkCategorizeTransactions]);
+    }, [activeView, transactions, accounts, budget, currentUser, profile, handleUpdateProfile, handleDeleteTransaction, handleLinkAccount, handleUnlinkAccount, handleSetChartFilter, chartFilter, handleClearChartFilter, handleAddTransaction, handleSetBudget, handleBulkDeleteTransactions, handleBulkCategorizeTransactions, handleOpenAddModal, handleOpenEditModal]);
 
-    if (!isAuthenticated) {
-        return <Login onLogin={handleLogin} />;
+    if (!currentUser) {
+        return <Login onLogin={login} onRegister={register} />;
+    }
+
+    if (isConnecting) {
+        return (
+            <div className="flex h-screen w-full items-center justify-center bg-gray-50 dark:bg-gray-900">
+                <SpinnerIcon className="h-12 w-12 text-primary" />
+            </div>
+        );
     }
 
     return (
         <ThemeProvider>
             <CurrencyProvider>
                 <div className="flex h-screen bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-gray-200 font-sans">
-                    <Sidebar activeView={activeView} setActiveView={setActiveView} onLogout={() => setIsAuthenticated(false)} />
+                    <Sidebar activeView={activeView} setActiveView={setActiveView} onLogout={handleLogout} currentUser={currentUser} />
                     <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto relative">
                         {mainContent}
                     </main>
@@ -163,10 +289,17 @@ const App: React.FC = () => {
                         onSave={handleSaveTransaction}
                         transaction={editingTransaction}
                     />
+                    {isOffline && <OfflineIndicator />}
                 </div>
             </CurrencyProvider>
         </ThemeProvider>
     );
 };
+
+const App: React.FC = () => (
+    <UserProvider>
+        <AppContent />
+    </UserProvider>
+);
 
 export default App;

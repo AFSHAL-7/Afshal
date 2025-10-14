@@ -1,3 +1,5 @@
+import React from 'react';
+
 export enum View {
     Dashboard = 'Dashboard',
     Transactions = 'Transactions',
@@ -49,7 +51,12 @@ export type Budget = {
 export interface CategoryData {
     name: string;
     value: number;
-    // FIX: Add index signature to be compatible with the Recharts library's data prop,
-    // which expects objects that can be indexed by a string.
     [key: string]: any;
+}
+
+export interface Profile {
+    username: string;
+    fullName?: string;
+    bio?: string;
+    avatar?: string; // Base64 encoded image
 }

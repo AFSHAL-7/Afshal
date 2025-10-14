@@ -1,71 +1,282 @@
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { User } from '../contexts/UserContext';
+import { Profile as ProfileData } from '../types';
+import { SpinnerIcon, CameraIcon, DeleteIcon } from './icons/Icons';
 
 interface ProfileProps {
     transactionsCount: number;
+    currentUser: User;
+    profile: ProfileData | null;
+    onUpdateProfile: (newUsername: string, profileDetails: Omit<ProfileData, 'username'>) => Promise<void>;
 }
 
-const Profile: React.FC<ProfileProps> = ({ transactionsCount }) => {
+const Profile: React.FC<ProfileProps> = ({ transactionsCount, currentUser, profile, onUpdateProfile }) => {
+    const [username, setUsername] = useState(currentUser.username);
+    const [fullName, setFullName] = useState('');
+    const [bio, setBio] = useState('');
+    const [avatar, setAvatar] = useState<string | undefined>(undefined);
+    
+    const [isDirty, setIsDirty] = useState(false);
+    const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState('');
+
+    // State for success message and its animation
+    const [successMessage, setSuccessMessage] = useState('');
+    const [animationClass, setAnimationClass] = useState('');
+    const successTimeoutRef = useRef<number | null>(null);
+
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
+    // Effect to clear timeout on unmount
+    useEffect(() => {
+        return () => {
+            if (successTimeoutRef.current) {
+                clearTimeout(successTimeoutRef.current);
+            }
+        };
+    }, []);
+
+
+    useEffect(() => {
+        setUsername(currentUser.username);
+        if (profile) {
+            setFullName(profile.fullName || '');
+            setBio(profile.bio || '');
+            setAvatar(profile.avatar);
+        } else {
+            // Ensure fields are clear if there's no profile (e.g., new user)
+            setFullName('');
+            setBio('');
+            setAvatar(undefined);
+        }
+    }, [currentUser, profile]);
+
+    useEffect(() => {
+        const hasChanged =
+            username.trim() !== currentUser.username ||
+            fullName !== (profile?.fullName || '') ||
+            bio !== (profile?.bio || '') ||
+            avatar !== profile?.avatar;
+        setIsDirty(hasChanged);
+    }, [username, fullName, bio, avatar, currentUser, profile]);
+
+    const handleAvatarClick = () => {
+        fileInputRef.current?.click();
+    };
+    
+    const clearMessages = () => {
+        setError('');
+        setSuccessMessage('');
+        setAnimationClass('');
+        if (successTimeoutRef.current) {
+            clearTimeout(successTimeoutRef.current);
+        }
+    };
+
+    const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                setAvatar(reader.result as string);
+                clearMessages();
+            };
+            reader.readAsDataURL(file);
+        }
+    };
+
+    const handleRemoveAvatar = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (fileInputRef.current) {
+            fileInputRef.current.value = "";
+        }
+        setAvatar(undefined);
+        clearMessages();
+    };
+
+    const handleSaveChanges = async (e: React.FormEvent) => {
+        e.preventDefault();
+        clearMessages();
+        
+        if (!/^[a-zA-Z0-9_]{3,15}$/.test(username.trim())) {
+            setError('Username must be 3-15 characters and contain only letters, numbers, or underscores.');
+            return;
+        }
+
+        setIsLoading(true);
+        try {
+            await onUpdateProfile(username.trim(), { fullName, bio, avatar });
+            setSuccessMessage('Profile updated successfully!');
+            setAnimationClass('animate-fade-in-scale');
+
+            successTimeoutRef.current = window.setTimeout(() => {
+                setAnimationClass('animate-fade-out-scale');
+            }, 2700); // Start fade-out before removing the message
+
+        } catch (err: any) {
+            setError(err.message || 'An unexpected error occurred.');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+    
+    const getInitials = (name?: string, fallback = 'SM') => {
+        if (!name) return fallback;
+        const parts = name.trim().split(' ').filter(p => p);
+        if (parts.length > 1) {
+            return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+        }
+        if (parts.length === 1 && parts[0].length > 1) {
+            return parts[0].substring(0, 2).toUpperCase();
+        }
+        if (parts.length === 1) {
+            return parts[0][0].toUpperCase();
+        }
+        return fallback;
+    };
+
+    const initials = getInitials(fullName || currentUser.username, 'SM');
+    
     return (
         <div className="space-y-8 max-w-4xl mx-auto">
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white">My Profile</h1>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="md:col-span-1 flex flex-col items-center bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm">
-                    <img
-                        className="h-24 w-24 rounded-full object-cover"
-                        src="https://i.pravatar.cc/150?u=a042581f4e29026704d"
-                        alt="User avatar"
-                    />
-                    <h2 className="mt-4 text-xl font-semibold text-gray-800 dark:text-white">Alex Doe</h2>
-                    <p className="text-gray-500 dark:text-gray-400">alex.doe@example.com</p>
-                    <div className="mt-4 text-sm text-center">
-                        <p className="font-medium text-gray-600 dark:text-gray-300">Member Since</p>
-                        <p className="text-gray-500 dark:text-gray-400">January 2023</p>
-                    </div>
-                     <div className="mt-4 text-sm text-center">
-                        <p className="font-medium text-gray-600 dark:text-gray-300">Total Transactions</p>
-                        <p className="text-gray-500 dark:text-gray-400">{transactionsCount}</p>
+            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm overflow-hidden">
+                <div className="p-6 bg-gray-50 dark:bg-gray-800/50 border-b border-gray-200 dark:border-gray-700">
+                    <div className="flex flex-col sm:flex-row items-center sm:items-start sm:gap-6">
+                        <div className="relative group flex-shrink-0">
+                            {avatar ? (
+                                <img
+                                    className="h-24 w-24 rounded-full object-cover ring-4 ring-primary/20"
+                                    src={avatar}
+                                    alt="User avatar"
+                                />
+                            ) : (
+                                <div className="h-24 w-24 rounded-full ring-4 ring-primary/20 bg-primary-100 dark:bg-primary-900/50 flex items-center justify-center">
+                                    <span className="text-3xl font-bold text-primary dark:text-primary-200">{initials}</span>
+                                </div>
+                            )}
+
+                            <div 
+                                className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center gap-2 text-white opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                            >
+                                <button 
+                                    onClick={handleAvatarClick}
+                                    className="p-2"
+                                    aria-label="Change profile picture"
+                                >
+                                    <CameraIcon className="w-8 h-8" />
+                                </button>
+                                {avatar && (
+                                     <button
+                                        onClick={handleRemoveAvatar}
+                                        className="p-2"
+                                        aria-label="Remove profile picture"
+                                    >
+                                        <DeleteIcon className="w-7 h-7" />
+                                    </button>
+                                )}
+                            </div>
+                            <input
+                                type="file"
+                                ref={fileInputRef}
+                                onChange={handleFileChange}
+                                accept="image/png, image/jpeg, image/gif"
+                                className="hidden"
+                            />
+                        </div>
+                        <div className="text-center sm:text-left mt-4 sm:mt-0">
+                            <h2 className="text-2xl font-bold text-gray-800 dark:text-white">{fullName || currentUser.username}</h2>
+                            <p className="text-sm text-gray-500 dark:text-gray-400">@{currentUser.username}</p>
+                            <div className="mt-4 flex items-center justify-center sm:justify-start gap-6 text-sm">
+                                <div>
+                                    <p className="font-medium text-gray-600 dark:text-gray-300">Member Since</p>
+                                    <p className="text-gray-500 dark:text-gray-400">
+                                        {new Date(currentUser.registeredAt).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                                    </p>
+                                </div>
+                                <div>
+                                    <p className="font-medium text-gray-600 dark:text-gray-300">Transactions</p>
+                                    <p className="font-semibold text-lg text-primary">{transactionsCount}</p>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
-
-                <div className="md:col-span-2 bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm">
-                    <h2 className="text-xl font-semibold mb-4 text-gray-800 dark:text-white">Account Details</h2>
-                    <form className="space-y-4">
-                        <div>
-                            <label htmlFor="name" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Full Name</label>
-                            <input type="text" id="name" defaultValue="Alex Doe" className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-gray-50 dark:bg-gray-700 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm" />
-                        </div>
-                        <div>
-                            <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Email Address</label>
-                            <input type="email" id="email" defaultValue="alex.doe@example.com" disabled className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-gray-200 dark:bg-gray-700/50 cursor-not-allowed sm:text-sm" />
-                        </div>
-                        <div className="pt-2">
-                             <button type="submit" className="px-4 py-2 text-sm font-medium text-white bg-primary rounded-lg hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500">
-                                Save Changes
-                            </button>
-                        </div>
-                    </form>
-
-                     <hr className="my-6 border-gray-200 dark:border-gray-700"/>
-
-                     <h2 className="text-xl font-semibold mb-4 text-gray-800 dark:text-white">Change Password</h2>
-                     <form className="space-y-4">
-                        <div>
-                            <label htmlFor="current_password" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Current Password</label>
-                            <input type="password" id="current_password" className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-gray-50 dark:bg-gray-700 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm" />
-                        </div>
-                        <div>
-                            <label htmlFor="new_password" className="block text-sm font-medium text-gray-700 dark:text-gray-300">New Password</label>
-                            <input type="password" id="new_password" className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-gray-50 dark:bg-gray-700 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm" />
-                        </div>
-                         <div className="pt-2">
-                             <button type="submit" className="px-4 py-2 text-sm font-medium text-white bg-primary rounded-lg hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500">
-                                Update Password
-                            </button>
-                        </div>
-                     </form>
-                </div>
+                
+                <form className="p-6 space-y-6" onSubmit={handleSaveChanges}>
+                    <div>
+                        <label htmlFor="fullName" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Full Name</label>
+                        <input 
+                            type="text" 
+                            id="fullName" 
+                            value={fullName} 
+                            onChange={(e) => {
+                                setFullName(e.target.value);
+                                clearMessages();
+                            }}
+                            className="mt-1 block w-full input-field" 
+                        />
+                    </div>
+                    <div>
+                        <label htmlFor="username" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Username</label>
+                        <input 
+                            type="text" 
+                            id="username" 
+                            value={username} 
+                            onChange={(e) => {
+                                setUsername(e.target.value);
+                                clearMessages();
+                            }}
+                            className="mt-1 block w-full input-field" 
+                        />
+                    </div>
+                    <div>
+                        <label htmlFor="bio" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Bio</label>
+                        <textarea
+                            id="bio"
+                            rows={3}
+                            value={bio}
+                            onChange={(e) => {
+                                setBio(e.target.value);
+                                clearMessages();
+                            }}
+                            placeholder="Tell us a little about yourself"
+                            className="mt-1 block w-full input-field"
+                        ></textarea>
+                    </div>
+                    <div>
+                        <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Email Address</label>
+                        <input type="email" id="email" value={currentUser.email} disabled readOnly className="mt-1 block w-full input-field bg-gray-200 dark:bg-gray-700/50 cursor-not-allowed" />
+                    </div>
+                    
+                    <div className="pt-2 flex items-center gap-4">
+                        <button 
+                            type="submit" 
+                            disabled={isLoading || !isDirty}
+                            className="inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-white bg-primary rounded-lg hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:bg-gray-400 dark:disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors duration-200"
+                        >
+                            {isLoading && <SpinnerIcon className="w-4 h-4 mr-2" />}
+                            {isLoading ? 'Saving...' : 'Save Changes'}
+                        </button>
+                        {error && <p className="text-sm text-red-500 dark:text-red-400">{error}</p>}
+                        {successMessage && (
+                            <p 
+                                className={`text-sm text-green-500 dark:text-green-400 ${animationClass}`}
+                                onAnimationEnd={() => {
+                                    if (animationClass === 'animate-fade-out-scale') {
+                                        setSuccessMessage('');
+                                        setAnimationClass('');
+                                    }
+                                }}
+                            >
+                                {successMessage}
+                            </p>
+                        )}
+                    </div>
+                </form>
             </div>
+             <style>{`.input-field { display: block; width: 100%; padding: 0.5rem 0.75rem; border: 1px solid #d1d5db; background-color: #f9fafb; border-radius: 0.5rem; box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05); } .dark .input-field { border-color: #4b5563; background-color: #374151; } .input-field:focus { outline: none; --tw-ring-color: hsl(220, 80%, 55%); border-color: hsl(220, 80%, 55%); box-shadow: 0 0 0 1px hsl(220, 80%, 55%); }`}</style>
         </div>
     );
 };

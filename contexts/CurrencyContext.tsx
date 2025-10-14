@@ -1,47 +1,35 @@
-import React, { createContext, useState, useContext, useMemo, ReactNode } from 'react';
+import React, { createContext, useContext, useMemo, ReactNode } from 'react';
 
-// Placeholder exchange rates relative to USD
-const conversionRates: { [key: string]: number } = {
-    USD: 1,
-    EUR: 0.92,
-    INR: 83.3,
-    JPY: 157.0,
-};
-
-export const supportedCurrencies = Object.keys(conversionRates);
+export const supportedCurrencies = ['INR'];
 
 interface CurrencyContextType {
     currency: string;
-    setCurrency: (currency: string) => void;
     formatCurrency: (amount: number, options?: Intl.NumberFormatOptions) => string;
 }
 
 const CurrencyContext = createContext<CurrencyContextType | undefined>(undefined);
 
 export const CurrencyProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-    const [currency, setCurrency] = useState<string>('USD');
+    const currency = 'INR';
 
     const formatCurrency = (amount: number, options?: Intl.NumberFormatOptions) => {
-        const rate = conversionRates[currency] || 1;
-        const convertedAmount = amount * rate;
-        
         const defaultOptions: Intl.NumberFormatOptions = {
             style: 'currency',
             currency: currency,
         };
         
         try {
-            return new Intl.NumberFormat(undefined, { ...defaultOptions, ...options }).format(convertedAmount);
+            // Using 'en-IN' locale for appropriate INR formatting (e.g., Lakh, Crore for large numbers)
+            return new Intl.NumberFormat('en-IN', { ...defaultOptions, ...options }).format(amount);
         } catch (error) {
-            console.warn(`Currency formatting failed for ${currency}, falling back to USD.`, error);
-            // Fallback for unsupported currencies if any
-            return new Intl.NumberFormat('en-US', { ...defaultOptions, ...options, currency: 'USD' }).format(amount);
+            console.warn(`Currency formatting failed for ${currency}, falling back to default.`, error);
+            // Fallback for safety, though it shouldn't be needed for INR
+            return new Intl.NumberFormat(undefined, { ...defaultOptions, ...options }).format(amount);
         }
     };
 
     const value = useMemo(() => ({
         currency,
-        setCurrency,
         formatCurrency
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }), [currency]);

@@ -1,10 +1,13 @@
-
 import { GoogleGenAI } from "@google/genai";
 import { Transaction, TransactionType } from '../types';
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
 
 export const generateFinancialInsight = async (transactions: Transaction[]): Promise<string> => {
+    if (!navigator.onLine) {
+        return "You are currently offline. Please connect to the internet to generate AI insights.";
+    }
+
     if (!process.env.API_KEY) {
         return "API Key not configured. Please set up your environment variables.";
     }
@@ -46,6 +49,9 @@ export const generateFinancialInsight = async (transactions: Transaction[]): Pro
             config: {
                 temperature: 0.7,
                 maxOutputTokens: 150,
+                // FIX: Added `thinkingConfig` as required for the 'gemini-2.5-flash' model when `maxOutputTokens` is set.
+                // This prevents all tokens from being consumed by "thinking", ensuring there is a budget for the final response.
+                thinkingConfig: { thinkingBudget: 100 },
             }
         });
         

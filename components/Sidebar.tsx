@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import { View } from '../types';
+import { User } from '../contexts/UserContext';
 import { DashboardIcon, TransactionsIcon, InsightsIcon, SettingsIcon, LogoutIcon, LogoIcon, MenuIcon, CloseIcon, ProfileIcon } from './icons/Icons';
 
 interface SidebarProps {
     activeView: View;
     setActiveView: (view: View) => void;
     onLogout: () => void;
+    currentUser: User;
 }
 
 const navItems = [
@@ -16,7 +18,7 @@ const navItems = [
     { view: View.Profile, icon: ProfileIcon, label: 'Profile' },
 ];
 
-export const Sidebar: React.FC<SidebarProps> = ({ activeView, setActiveView, onLogout }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ activeView, setActiveView, onLogout, currentUser }) => {
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
     const NavLink: React.FC<{ view: View; icon: React.ElementType; label: string }> = ({ view, icon: Icon, label }) => (
@@ -38,7 +40,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeView, setActiveView, onL
 
     const sidebarContent = (
         <div className="flex flex-col h-full p-4">
-            <div className="flex items-center space-x-3 mb-10 px-2">
+            <div className="flex items-center space-x-3 mb-8 px-2">
                 <LogoIcon className="h-8 w-8 text-primary" />
                 <span className="text-xl font-bold text-gray-800 dark:text-white">SmartMoney</span>
             </div>

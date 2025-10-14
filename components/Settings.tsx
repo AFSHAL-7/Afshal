@@ -3,7 +3,6 @@ import { ThemeToggle } from './ui/ThemeToggle';
 import { Account } from '../types';
 import LinkAccountModal from './modals/LinkAccountModal';
 import { PlusIcon } from './icons/Icons';
-import { useCurrency, supportedCurrencies } from '../contexts/CurrencyContext';
 
 interface AccountItemProps {
     account: Account;
@@ -30,7 +29,6 @@ interface SettingsProps {
 
 const Settings: React.FC<SettingsProps> = ({ linkedAccounts, onLinkAccount, onUnlinkAccount }) => {
     const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
-    const { currency, setCurrency } = useCurrency();
 
     return (
         <div className="space-y-8 max-w-4xl mx-auto">
@@ -44,15 +42,8 @@ const Settings: React.FC<SettingsProps> = ({ linkedAccounts, onLinkAccount, onUn
                         <ThemeToggle />
                     </div>
                     <div className="flex items-center justify-between py-4">
-                        <label htmlFor="currency-select" className="text-gray-600 dark:text-gray-300">Currency</label>
-                        <select
-                            id="currency-select"
-                            value={currency}
-                            onChange={(e) => setCurrency(e.target.value)}
-                            className="w-auto border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 focus:ring-primary focus:border-primary py-2 px-3"
-                        >
-                            {supportedCurrencies.map(c => <option key={c} value={c}>{c}</option>)}
-                        </select>
+                        <span className="text-gray-600 dark:text-gray-300">Currency</span>
+                        <span className="font-medium text-gray-800 dark:text-gray-200">INR (Indian Rupee)</span>
                     </div>
                 </div>
             </div>

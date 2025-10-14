@@ -33,7 +33,7 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }) => {
                 aria-hidden="true" 
                 onClick={onClose}
             ></div>
-            <div className="relative bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-lg mx-auto transform transition-all duration-300 ease-in-out scale-95 opacity-0 animate-fade-in-scale">
+            <div className="relative bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-lg mx-auto animate-fade-in-scale">
                 <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
                     <h2 id="modal-title" className="text-lg font-semibold text-gray-900 dark:text-white">{title}</h2>
                     <button 
@@ -46,13 +46,6 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }) => {
                 </div>
                 <div>{children}</div>
             </div>
-             <style>{`
-                @keyframes fadeInScale {
-                    from { opacity: 0; transform: scale(0.95); }
-                    to { opacity: 1; transform: scale(1); }
-                }
-                .animate-fade-in-scale { animation: fadeInScale 0.2s forwards ease-out; }
-            `}</style>
         </div>
     );
 };

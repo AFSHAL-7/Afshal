@@ -11,16 +11,60 @@ import { ThemeProvider } from './components/ThemeProvider';
 import { CurrencyProvider } from './contexts/CurrencyContext';
 import { UserProvider, useUser } from './contexts/UserContext';
 import { View, Transaction, Account, Budget, TransactionCategory, Profile as ProfileData } from './types';
-import { SmartMoneyDB, getDbForUser, fromDBAccount, toDBAccount } from './services/db';
-import { SpinnerIcon, LogoIcon, MenuIcon, CloseIcon, LogoutIcon } from './components/icons/Icons';
+import { supabase, isSupabaseConfigured } from './services/supabase';
+import { SpinnerIcon, LogoIcon, MenuIcon, CloseIcon, LogoutIcon, GooglePayIcon, PhonePeIcon, BankIcon, WarningIcon } from './components/icons/Icons';
 import OfflineIndicator from './components/ui/OfflineIndicator';
 import ConfirmModal from './components/modals/ConfirmModal';
 
 
+// Helper to get the actual icon component from its string name
+const getAccountIconComponent = (iconName: string): React.ElementType => {
+    switch(iconName) {
+        case 'GooglePayIcon': return GooglePayIcon;
+        case 'PhonePeIcon': return PhonePeIcon;
+        case 'BankIcon': return BankIcon;
+        default: return BankIcon;
+    }
+};
+
+// Convert a DB account record into an Account object usable by the UI
+const fromDBAccount = (dbAccount: Omit<Account, 'icon'> & { icon: string }): Account => ({
+    ...dbAccount,
+    icon: getAccountIconComponent(dbAccount.icon),
+});
+
+// Convert a UI Account object into a record for DB storage
+const toDBAccount = (account: Account): Omit<Account, 'icon'> & { icon: string } => {
+    let iconName = 'BankIcon';
+    if (account.icon === GooglePayIcon) iconName = 'GooglePayIcon';
+    else if (account.icon === PhonePeIcon) iconName = 'PhonePeIcon';
+    
+    return { ...account, icon: iconName };
+};
+
+
 const AppContent: React.FC = () => {
-    const { currentUser, login, register, logout, updateUser } = useUser();
-    const [userDb, setUserDb] = useState<SmartMoneyDB | null>(null);
-    const [isConnecting, setIsConnecting] = useState(true);
+    if (!isSupabaseConfigured) {
+        return (
+            <div className="flex h-screen w-full items-center justify-center bg-gray-50 dark:bg-gray-900 text-center p-4">
+                <div className="max-w-md p-8 bg-white dark:bg-gray-800 rounded-2xl shadow-lg">
+                    <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-red-100 dark:bg-red-900/50">
+                        <WarningIcon className="h-8 w-8 text-red-600 dark:text-red-400" aria-hidden="true" />
+                    </div>
+                    <h1 className="mt-5 text-2xl font-bold text-red-500 dark:text-red-400">Configuration Error</h1>
+                    <p className="mt-4 text-gray-700 dark:text-gray-300">
+                        The application is not connected to a backend database.
+                    </p>
+                    <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+                        Please provide your Supabase URL and anonymous key as environment variables (<code>SUPABASE_URL</code> and <code>SUPABASE_ANON_KEY</code>) to enable database functionality.
+                    </p>
+                </div>
+            </div>
+        );
+    }
+
+    const { user, profile, loading: userLoading, login, register, logout, refetchProfile } = useUser();
+    const [isLoading, setIsLoading] = useState(true);
     const [isOffline, setIsOffline] = useState(!navigator.onLine);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
@@ -30,7 +74,6 @@ const AppContent: React.FC = () => {
     const [transactions, setTransactions] = useState<Transaction[]>([]);
     const [accounts, setAccounts] = useState<Account[]>([]);
     const [budget, setBudget] = useState<Budget>({});
-    const [profile, setProfile] = useState<ProfileData | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
     const [chartFilter, setChartFilter] = useState<{ type: 'date' | 'category' | null, value: string | null }>({ type: null, value: null });
@@ -50,92 +93,89 @@ const AppContent: React.FC = () => {
     }, []);
 
     const fetchData = useCallback(async () => {
-        if (!userDb || !currentUser) return;
+        if (!user || !supabase) return;
         
-        setIsConnecting(true);
-        const [dbTransactions, dbAccounts, dbBudgetItems, dbProfile] = await Promise.all([
-            userDb.transactions.toArray(),
-            userDb.accounts.toArray(),
-            userDb.budget.toArray(),
-            userDb.profiles.get(currentUser.username)
-        ]);
-        
-        setTransactions(dbTransactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
-        setAccounts(dbAccounts.map(fromDBAccount));
-        setProfile(dbProfile || null);
+        setIsLoading(true);
+        const { data: transactionsData, error: transactionsError } = await supabase.from('transactions').select('*').eq('user_id', user.id);
+        const { data: accountsData, error: accountsError } = await supabase.from('accounts').select('*').eq('user_id', user.id);
+        const { data: budgetData, error: budgetError } = await supabase.from('budget').select('*').eq('user_id', user.id);
 
-        const budgetObject = dbBudgetItems.reduce((acc, item) => {
+        if (transactionsError || accountsError || budgetError) {
+            console.error("Error fetching data:", transactionsError || accountsError || budgetError);
+            setIsLoading(false);
+            return;
+        }
+        
+        setTransactions(transactionsData.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+        setAccounts(accountsData.map(fromDBAccount));
+
+        const budgetObject = budgetData.reduce((acc, item) => {
             acc[item.category] = item.amount;
             return acc;
         }, {} as Budget);
         setBudget(budgetObject);
-        setIsConnecting(false);
-    }, [userDb, currentUser]);
+        setIsLoading(false);
+    }, [user]);
 
-    // Effect to initialize DB connection when user logs in
     useEffect(() => {
-        const connectToDb = async () => {
-            if (currentUser) {
-                setIsConnecting(true);
-                const db = getDbForUser(currentUser.username);
-                // Dexie's lazy-opening means we don't strictly need db.open(),
-                // but it can be useful for explicitly catching connection errors early.
-                await db.open();
-                setUserDb(db);
-            } else {
-                setUserDb(null);
-                setIsConnecting(false);
-            }
-        };
-        connectToDb();
-    }, [currentUser]);
-
-    // Effect to fetch data when DB connection is established
-    useEffect(() => {
-        if (userDb) {
+        if (user) {
             fetchData();
-        } else {
-            // Clear data on logout
+        } else if (!userLoading) {
+            // Clear data on logout or if no user is found
             setTransactions([]);
             setAccounts([]);
             setBudget({});
-            setProfile(null);
+            setIsLoading(false);
         }
-    }, [userDb, fetchData]);
+    }, [user, userLoading, fetchData]);
 
     const handleLogout = () => {
         setIsLogoutConfirmOpen(true);
     };
+    
+    const handleUpdateProfile = useCallback(async (newUsername: string, profileDetails: Omit<ProfileData, 'username' | 'id'>) => {
+        if (!user || !supabase) throw new Error("No user is logged in.");
 
-    const handleUpdateProfile = useCallback(async (newUsername: string, profileDetails: Omit<ProfileData, 'username'>) => {
-        if (!currentUser || !userDb) {
-            throw new Error("No user is logged in or database is not connected.");
-        }
-    
-        const currentUsername = currentUser.username;
-    
-        // 1. Save non-username profile details to the current database.
-        const profileData: ProfileData = {
-            username: currentUsername,
-            ...profileDetails,
-        };
-        await userDb.profiles.put(profileData);
-        setProfile(profileData);
-    
-        // 2. If the username has changed, call the context's updateUser function.
-        // This will handle renaming the database and all its data, then reload the app.
-        const trimmedNewUsername = newUsername.trim();
-        if (trimmedNewUsername !== currentUsername) {
-            try {
-                await updateUser(trimmedNewUsername);
-                // updateUser will cause a page reload, so no further action is needed here.
-            } catch (error) {
-                // If the username update fails, re-throw the error so the UI can catch it.
-                console.error("Username update failed:", error);
-                throw error;
+        const trimmedUsername = newUsername.trim();
+        
+        if (trimmedUsername !== profile?.username) {
+            const { data: existingProfile, error: checkError } = await supabase.from('profiles').select('id').eq('username', trimmedUsername).limit(1).single();
+            
+            // A "no rows found" error is expected if the username is available.
+            // We only need to throw if another, unexpected error occurs.
+            if (checkError && checkError.code !== 'PGRST116') { 
+                console.error("Error checking username:", checkError);
+                throw new Error(checkError.message);
+            }
+
+            if (existingProfile && existingProfile.id !== user.id) {
+                throw new Error('Username is already taken.');
             }
         }
-    }, [currentUser, userDb, updateUser]);
+        
+        // For an update, we don't include the primary key in the payload.
+        // We identify the row to update using `.eq()` instead.
+        const profileDataToUpdate = {
+            username: trimmedUsername,
+            full_name: profileDetails.fullName,
+            bio: profileDetails.bio,
+            avatar: profileDetails.avatar,
+            updated_at: new Date().toISOString()
+        };
+
+        const { error } = await supabase
+            .from('profiles')
+            .update(profileDataToUpdate)
+            .eq('id', user.id);
+
+        if (error) {
+            console.error("Profile update failed:", error);
+            throw new Error(error.message);
+        }
+        
+        await refetchProfile();
+
+    }, [user, profile, refetchProfile]);
 
     const handleOpenAddModal = () => {
         setEditingTransaction(null);
@@ -153,66 +193,70 @@ const AppContent: React.FC = () => {
     }, []);
 
     const handleSaveTransaction = useCallback(async (transaction: Omit<Transaction, 'id' | 'source'>) => {
-        if (!userDb) return;
+        if (!user || !supabase) return;
         if (editingTransaction) {
-            // Edit existing transaction
-            const updatedTransaction = { ...editingTransaction, ...transaction };
-            await userDb.transactions.put(updatedTransaction);
+            const { error } = await supabase.from('transactions').update({ ...transaction }).eq('id', editingTransaction.id);
+            if (error) console.error("Error updating transaction:", error);
         } else {
-            // Add new transaction
-            const newTransaction: Transaction = {
+            const newTransaction = {
                 ...transaction,
-                id: `manual-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`,
+                user_id: user.id,
                 source: 'Manual',
             };
-            await userDb.transactions.add(newTransaction);
+            const { error } = await supabase.from('transactions').insert(newTransaction);
+            if (error) console.error("Error adding transaction:", error);
         }
         await fetchData();
         handleCloseModal();
-    }, [userDb, editingTransaction, handleCloseModal, fetchData]);
+    }, [user, editingTransaction, handleCloseModal, fetchData]);
     
     const handleAddTransaction = useCallback(async (transaction: Omit<Transaction, 'id' | 'source'>) => {
-        if (!userDb) return;
-        const newTransaction: Transaction = {
+        if (!user || !supabase) return;
+        const newTransaction = {
             ...transaction,
-            id: `manual-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`,
+            user_id: user.id,
             source: 'Manual',
         };
-        await userDb.transactions.add(newTransaction);
+        const { error } = await supabase.from('transactions').insert(newTransaction);
+        if (error) console.error("Error adding transaction:", error);
         await fetchData();
-    }, [userDb, fetchData]);
+    }, [user, fetchData]);
 
     const handleDeleteTransaction = useCallback(async (transactionId: string) => {
-        if (!userDb) return;
-        await userDb.transactions.delete(transactionId);
+        if (!user || !supabase) return;
+        const { error } = await supabase.from('transactions').delete().eq('id', transactionId);
+        if (error) console.error("Error deleting transaction:", error);
         await fetchData();
-    }, [userDb, fetchData]);
+    }, [user, fetchData]);
 
     const handleBulkDeleteTransactions = useCallback(async (transactionIds: string[]) => {
-        if (!userDb) return;
-        await userDb.transactions.bulkDelete(transactionIds);
+        if (!user || !supabase) return;
+        const { error } = await supabase.from('transactions').delete().in('id', transactionIds);
+        if (error) console.error("Error bulk deleting transactions:", error);
         await fetchData();
-    }, [userDb, fetchData]);
+    }, [user, fetchData]);
 
     const handleBulkCategorizeTransactions = useCallback(async (transactionIds: string[], category: TransactionCategory) => {
-        if (!userDb) return;
-        const transactionsToUpdate = await userDb.transactions.where('id').anyOf(transactionIds).toArray();
-        const updatedTransactions = transactionsToUpdate.map(t => ({ ...t, category }));
-        await userDb.transactions.bulkPut(updatedTransactions);
+        if (!user || !supabase) return;
+        const { error } = await supabase.from('transactions').update({ category }).in('id', transactionIds);
+        if (error) console.error("Error bulk categorizing transactions:", error);
         await fetchData();
-    }, [userDb, fetchData]);
+    }, [user, fetchData]);
 
     const handleLinkAccount = useCallback(async (account: Account) => {
-        if (!userDb) return;
-        await userDb.accounts.add(toDBAccount(account));
+        if (!user || !supabase) return;
+        const dbAccount = toDBAccount(account);
+        const { error } = await supabase.from('accounts').insert({ ...dbAccount, user_id: user.id, id: undefined });
+        if (error) console.error("Error linking account:", error);
         await fetchData();
-    }, [userDb, fetchData]);
+    }, [user, fetchData]);
 
     const handleUnlinkAccount = useCallback(async (accountId: string) => {
-        if (!userDb) return;
-        await userDb.accounts.delete(accountId);
+        if (!user || !supabase) return;
+        const { error } = await supabase.from('accounts').delete().eq('id', accountId);
+        if (error) console.error("Error unlinking account:", error);
         await fetchData();
-    }, [userDb, fetchData]);
+    }, [user, fetchData]);
 
     const handleSetChartFilter = useCallback((type: 'date' | 'category', value: string) => {
         setChartFilter({ type, value });
@@ -226,10 +270,11 @@ const AppContent: React.FC = () => {
 
 
     const handleSetBudget = useCallback(async (category: TransactionCategory, amount: number) => {
-        if (!userDb) return;
-        await userDb.budget.put({ category, amount });
+        if (!user || !supabase) return;
+        const { error } = await supabase.from('budget').upsert({ user_id: user.id, category, amount }, { onConflict: 'user_id,category' });
+        if (error) console.error("Error setting budget:", error);
         await fetchData();
-    }, [userDb, fetchData]);
+    }, [user, fetchData]);
 
 
     const mainContent = useMemo(() => {
@@ -258,19 +303,20 @@ const AppContent: React.FC = () => {
             case View.Insights:
                 return <Insights transactions={transactions} />;
             case View.Settings:
-                return <Settings linkedAccounts={accounts} onLinkAccount={handleLinkAccount} onUnlinkAccount={handleUnlinkAccount} />;
+                return <Settings 
+                           linkedAccounts={accounts} 
+                           onLinkAccount={handleLinkAccount} 
+                           onUnlinkAccount={handleUnlinkAccount}
+                           onDataRefresh={fetchData} 
+                       />;
             case View.Profile:
-                return <Profile currentUser={currentUser!} profile={profile} transactionsCount={transactions.length} onUpdateProfile={handleUpdateProfile} />;
+                return <Profile user={user!} profile={profile} transactionsCount={transactions.length} onUpdateProfile={handleUpdateProfile} />;
             default:
                 return <Dashboard {...dashboardProps} />;
         }
-    }, [activeView, transactions, accounts, budget, currentUser, profile, handleUpdateProfile, handleDeleteTransaction, handleLinkAccount, handleUnlinkAccount, handleSetChartFilter, chartFilter, handleClearChartFilter, handleAddTransaction, handleSetBudget, handleBulkDeleteTransactions, handleBulkCategorizeTransactions, handleOpenAddModal, handleOpenEditModal]);
+    }, [activeView, transactions, accounts, budget, user, profile, handleUpdateProfile, handleDeleteTransaction, handleLinkAccount, handleUnlinkAccount, handleSetChartFilter, chartFilter, handleClearChartFilter, handleAddTransaction, handleSetBudget, handleBulkDeleteTransactions, handleBulkCategorizeTransactions, handleOpenAddModal, handleOpenEditModal, fetchData]);
 
-    if (!currentUser) {
-        return <Login onLogin={login} onRegister={register} />;
-    }
-
-    if (isConnecting) {
+    if (userLoading) {
         return (
             <div className="flex h-screen w-full items-center justify-center bg-gray-50 dark:bg-gray-900">
                 <SpinnerIcon className="h-12 w-12 text-primary" />
@@ -278,6 +324,18 @@ const AppContent: React.FC = () => {
         );
     }
 
+    if (!user) {
+        return <Login onLogin={login} onRegister={register} />;
+    }
+
+    if (isLoading) {
+        return (
+            <div className="flex h-screen w-full items-center justify-center bg-gray-50 dark:bg-gray-900">
+                <SpinnerIcon className="h-12 w-12 text-primary" />
+            </div>
+        );
+    }
+    
     return (
         <ThemeProvider>
             <CurrencyProvider>
@@ -298,7 +356,7 @@ const AppContent: React.FC = () => {
                             activeView={activeView} 
                             setActiveView={setActiveView} 
                             onLogout={handleLogout} 
-                            currentUser={currentUser}
+                            username={profile?.username || user.email!}
                             isMobileMenuOpen={isMobileMenuOpen}
                             setIsMobileMenuOpen={setIsMobileMenuOpen} 
                         />

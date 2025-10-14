@@ -2,7 +2,10 @@ import React, { useState } from 'react';
 import { ThemeToggle } from './ui/ThemeToggle';
 import { Account } from '../types';
 import LinkAccountModal from './modals/LinkAccountModal';
-import { PlusIcon } from './icons/Icons';
+import { PlusIcon, SpinnerIcon, DeleteIcon } from './icons/Icons';
+import { seedDatabase } from '../services/seed';
+import { useUser } from '../contexts/UserContext';
+import ConfirmModal from './modals/ConfirmModal';
 
 interface AccountItemProps {
     account: Account;
@@ -25,10 +28,36 @@ interface SettingsProps {
     linkedAccounts: Account[];
     onLinkAccount: (account: Account) => void;
     onUnlinkAccount: (id: string) => void;
+    onDataRefresh: () => void;
 }
 
-const Settings: React.FC<SettingsProps> = ({ linkedAccounts, onLinkAccount, onUnlinkAccount }) => {
+const Settings: React.FC<SettingsProps> = ({ linkedAccounts, onLinkAccount, onUnlinkAccount, onDataRefresh }) => {
+    const { user } = useUser();
     const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
+    const [isSeedConfirmOpen, setIsSeedConfirmOpen] = useState(false);
+    const [isSeeding, setIsSeeding] = useState(false);
+    const [seedMessage, setSeedMessage] = useState('');
+
+    const handleSeedData = async () => {
+        if (!user) return;
+        
+        setIsSeeding(true);
+        setSeedMessage('');
+        setIsSeedConfirmOpen(false);
+
+        try {
+            await seedDatabase(user);
+            setSeedMessage('Database seeded successfully!');
+            onDataRefresh();
+        } catch (error) {
+            console.error("Seeding failed:", error);
+            const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred.';
+            setSeedMessage(`Error: ${errorMessage}`);
+        } finally {
+            setIsSeeding(false);
+            setTimeout(() => setSeedMessage(''), 4000); // Clear message after 4 seconds
+        }
+    };
 
     return (
         <div className="space-y-8 max-w-4xl mx-auto">
@@ -68,6 +97,27 @@ const Settings: React.FC<SettingsProps> = ({ linkedAccounts, onLinkAccount, onUn
                    ))}
                 </div>
             </div>
+            
+            <div className="bg-white dark:bg-gray-800 p-4 sm:p-6 rounded-2xl shadow-sm">
+                 <h2 className="text-xl font-semibold mb-4 text-gray-800 dark:text-white">Developer Actions</h2>
+                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between">
+                    <div>
+                        <p className="text-gray-600 dark:text-gray-300">Seed Database with Demo Data</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">This will delete all your current data and replace it with sample data.</p>
+                    </div>
+                     <div className="flex items-center gap-4 mt-3 sm:mt-0">
+                        {seedMessage && <p className={`text-sm ${seedMessage.startsWith('Error') ? 'text-red-500' : 'text-green-500'}`}>{seedMessage}</p>}
+                        <button
+                            onClick={() => setIsSeedConfirmOpen(true)}
+                            disabled={isSeeding}
+                            className="inline-flex items-center justify-center w-36 px-4 py-2 text-sm font-medium text-white bg-amber-600 rounded-lg hover:bg-amber-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500 disabled:bg-gray-400"
+                        >
+                            {isSeeding ? <SpinnerIcon className="h-4 w-4 mr-2" /> : null}
+                            {isSeeding ? 'Seeding...' : 'Seed Data'}
+                        </button>
+                     </div>
+                 </div>
+            </div>
 
             <div className="bg-white dark:bg-gray-800 p-4 sm:p-6 rounded-2xl shadow-sm">
                  <h2 className="text-xl font-semibold mb-4 text-gray-800 dark:text-white">Notifications</h2>
@@ -84,6 +134,16 @@ const Settings: React.FC<SettingsProps> = ({ linkedAccounts, onLinkAccount, onUn
                 onClose={() => setIsLinkModalOpen(false)}
                 onLink={onLinkAccount}
                 existingAccounts={linkedAccounts}
+            />
+            <ConfirmModal
+                isOpen={isSeedConfirmOpen}
+                onClose={() => setIsSeedConfirmOpen(false)}
+                onConfirm={handleSeedData}
+                title="Confirm Database Seeding"
+                message="Are you sure you want to seed the database? This will ERASE all your current transactions, accounts, and budgets and replace them with sample data."
+                confirmText="Yes, Erase and Seed"
+                ConfirmIcon={DeleteIcon}
+                confirmButtonClass="bg-red-600 hover:bg-red-700 focus:ring-red-500"
             />
         </div>
     );

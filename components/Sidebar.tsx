@@ -1,13 +1,12 @@
 import React from 'react';
 import { View } from '../types';
-import { User } from '../contexts/UserContext';
 import { DashboardIcon, TransactionsIcon, InsightsIcon, SettingsIcon, LogoutIcon, LogoIcon, ProfileIcon } from './icons/Icons';
 
 interface SidebarProps {
     activeView: View;
     setActiveView: (view: View) => void;
     onLogout: () => void;
-    currentUser: User;
+    username: string;
     isMobileMenuOpen: boolean;
     setIsMobileMenuOpen: (isOpen: boolean) => void;
 }

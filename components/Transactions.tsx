@@ -1,11 +1,13 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Transaction, TransactionCategory, TransactionType } from '../types';
-import { SearchIcon, CloseIcon, PlusIcon, SpinnerIcon, EditIcon, DeleteIcon, TagIcon, ChevronDownIcon, FilterIcon } from './icons/Icons';
+import { SearchIcon, CloseIcon, PlusIcon, SpinnerIcon, EditIcon, DeleteIcon, TagIcon, ChevronDownIcon, FilterIcon, ExportIcon } from './icons/Icons';
 import FloatingActionButton from './ui/FloatingActionButton';
 import { useCurrency } from '../contexts/CurrencyContext';
 import { getCategoryIcon, getCategoryBadgeStyle } from '../../utils/getCategoryIcon';
 import ConfirmModal from './modals/ConfirmModal';
 import Modal from './ui/Modal';
+import ExportModal from './modals/ExportModal';
+import { exportTransactionsToCsv } from '../../utils/csv';
 
 interface TransactionsProps {
     transactions: Transaction[];
@@ -33,6 +35,7 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, onAddTransact
 
     const [isAddFormVisible, setIsAddFormVisible] = useState(false);
     const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
+    const [isExportModalOpen, setIsExportModalOpen] = useState(false);
     
     // Form state
     const [description, setDescription] = useState('');
@@ -73,6 +76,27 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, onAddTransact
 
         setIsAddFormVisible(false);
         resetForm();
+    };
+    
+    const handleExportTransactions = (startDate: string, endDate: string) => {
+        const start = new Date(startDate);
+        // Set end date to the end of the day to be inclusive
+        const end = new Date(endDate);
+        end.setHours(23, 59, 59, 999);
+
+        const filteredForExport = transactions.filter(t => {
+            const txDate = new Date(t.date);
+            return txDate >= start && txDate <= end;
+        });
+        
+        if (filteredForExport.length === 0) {
+            alert('No transactions found in the selected date range.');
+            return;
+        }
+
+        const formattedDate = new Date().toISOString().split('T')[0];
+        exportTransactionsToCsv(`smartmoney_export_${formattedDate}.csv`, filteredForExport);
+        setIsExportModalOpen(false);
     };
 
     const incomeCategories = [TransactionCategory.Salary, TransactionCategory.Freelance, TransactionCategory.Other];
@@ -254,6 +278,13 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, onAddTransact
                     >
                         <FilterIcon className="h-4 w-4" />
                         Filters
+                    </button>
+                    <button
+                        onClick={() => setIsExportModalOpen(true)}
+                        className="w-full flex-1 md:w-auto flex-shrink-0 inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600"
+                    >
+                        <ExportIcon className="h-4 w-4" />
+                        Export
                     </button>
                     {!isAddFormVisible && (
                         <button
@@ -591,6 +622,11 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, onAddTransact
                     </button>
                 </div>
             </Modal>
+            <ExportModal 
+                isOpen={isExportModalOpen} 
+                onClose={() => setIsExportModalOpen(false)} 
+                onExport={handleExportTransactions} 
+            />
         </div>
     );
 };

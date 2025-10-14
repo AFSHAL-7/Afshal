@@ -27,6 +27,7 @@ export enum TransactionCategory {
 
 export interface Transaction {
     id: string;
+    user_id?: string;
     date: string;
     description: string;
     amount: number;
@@ -55,6 +56,7 @@ export interface CategoryData {
 }
 
 export interface Profile {
+    id: string; // Corresponds to Supabase user ID
     username: string;
     fullName?: string;
     bio?: string;

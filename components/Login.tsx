@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { LogoIcon } from './icons/Icons';
 
 interface LoginProps {
@@ -13,6 +13,18 @@ const Login: React.FC<LoginProps> = ({ onLogin, onRegister }) => {
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
+    const [rateLimitCooldown, setRateLimitCooldown] = useState(0);
+
+    useEffect(() => {
+        if (rateLimitCooldown <= 0) return;
+
+        const timerId = setTimeout(() => {
+            setRateLimitCooldown(prev => prev - 1);
+        }, 1000);
+
+        return () => clearTimeout(timerId);
+    }, [rateLimitCooldown]);
+
 
     const validateForm = () => {
         if (!/\S+@\S+\.\S+/.test(email)) {
@@ -50,7 +62,19 @@ const Login: React.FC<LoginProps> = ({ onLogin, onRegister }) => {
                 : await onRegister(username, email, password);
 
             if (!result.success) {
-                setError(result.message || 'An unknown error occurred.');
+                let friendlyMessage = result.message || 'An unknown error occurred.';
+                const rawMessage = friendlyMessage.toLowerCase();
+
+                if (rawMessage.includes('for security purposes')) {
+                    friendlyMessage = 'Too many sign-up attempts. Please wait a minute and try again.';
+                    setRateLimitCooldown(60); // Start 60 second cooldown
+                } else if (rawMessage.includes('user already registered')) {
+                    friendlyMessage = 'This email is already registered. Please try signing in.';
+                } else if (rawMessage.includes('password should be stronger')) {
+                    friendlyMessage = 'This password is too common or weak. Please choose a stronger one.';
+                }
+                
+                setError(friendlyMessage);
             }
         } catch (err) {
             setError('An unexpected error occurred. Please try again.');
@@ -65,7 +89,14 @@ const Login: React.FC<LoginProps> = ({ onLogin, onRegister }) => {
         setUsername('');
         setEmail('');
         setPassword('');
+        setRateLimitCooldown(0); // Reset cooldown on form toggle
     };
+
+    const buttonText = () => {
+        if (loading) return 'Processing...';
+        if (!isLogin && rateLimitCooldown > 0) return `Try again in ${rateLimitCooldown}s`;
+        return isLogin ? 'Sign In' : 'Create Account';
+    }
 
     return (
         <div className="flex items-center justify-center min-h-screen bg-gray-50 dark:bg-gray-900">
@@ -127,10 +158,10 @@ const Login: React.FC<LoginProps> = ({ onLogin, onRegister }) => {
                     
                     <button
                         type="submit"
-                        disabled={loading}
+                        disabled={loading || rateLimitCooldown > 0}
                         className="w-full inline-flex items-center justify-center px-4 py-3 text-base font-medium text-white bg-primary border border-transparent rounded-md shadow-sm hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-colors duration-200 disabled:bg-gray-400 dark:disabled:bg-gray-600"
                     >
-                        {loading ? 'Processing...' : (isLogin ? 'Sign In' : 'Create Account')}
+                        {buttonText()}
                     </button>
                 </form>
                 <p className="text-sm text-gray-600 dark:text-gray-400">

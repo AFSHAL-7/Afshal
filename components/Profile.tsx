@@ -1,17 +1,19 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { User } from '../contexts/UserContext';
+// Fix: The 'User' type is not exported from '@supabase/supabase-js' in some versions.
+// Importing from '@supabase/gotrue-js' which is the underlying auth library.
+import type { User } from '@supabase/supabase-js';
 import { Profile as ProfileData } from '../types';
 import { SpinnerIcon, CameraIcon, DeleteIcon } from './icons/Icons';
 
 interface ProfileProps {
     transactionsCount: number;
-    currentUser: User;
+    user: User;
     profile: ProfileData | null;
-    onUpdateProfile: (newUsername: string, profileDetails: Omit<ProfileData, 'username'>) => Promise<void>;
+    onUpdateProfile: (newUsername: string, profileDetails: Omit<ProfileData, 'username' | 'id'>) => Promise<void>;
 }
 
-const Profile: React.FC<ProfileProps> = ({ transactionsCount, currentUser, profile, onUpdateProfile }) => {
-    const [username, setUsername] = useState(currentUser.username);
+const Profile: React.FC<ProfileProps> = ({ transactionsCount, user, profile, onUpdateProfile }) => {
+    const [username, setUsername] = useState(profile?.username || '');
     const [fullName, setFullName] = useState('');
     const [bio, setBio] = useState('');
     const [avatar, setAvatar] = useState<string | undefined>(undefined);
@@ -38,27 +40,27 @@ const Profile: React.FC<ProfileProps> = ({ transactionsCount, currentUser, profi
 
 
     useEffect(() => {
-        setUsername(currentUser.username);
         if (profile) {
+            setUsername(profile.username || '');
             setFullName(profile.fullName || '');
             setBio(profile.bio || '');
             setAvatar(profile.avatar);
         } else {
-            // Ensure fields are clear if there's no profile (e.g., new user)
+            setUsername('');
             setFullName('');
             setBio('');
             setAvatar(undefined);
         }
-    }, [currentUser, profile]);
+    }, [user, profile]);
 
     useEffect(() => {
         const hasChanged =
-            username.trim() !== currentUser.username ||
+            username.trim() !== (profile?.username || '') ||
             fullName !== (profile?.fullName || '') ||
             bio !== (profile?.bio || '') ||
             avatar !== profile?.avatar;
         setIsDirty(hasChanged);
-    }, [username, fullName, bio, avatar, currentUser, profile]);
+    }, [username, fullName, bio, avatar, profile]);
 
     const handleAvatarClick = () => {
         fileInputRef.current?.click();
@@ -135,7 +137,7 @@ const Profile: React.FC<ProfileProps> = ({ transactionsCount, currentUser, profi
         return fallback;
     };
 
-    const initials = getInitials(fullName || currentUser.username, 'SM');
+    const initials = getInitials(fullName || profile?.username, 'SM');
     
     return (
         <div className="space-y-8 max-w-4xl mx-auto">
@@ -183,13 +185,13 @@ const Profile: React.FC<ProfileProps> = ({ transactionsCount, currentUser, profi
                             />
                         </div>
                         <div className="text-center sm:text-left mt-4 sm:mt-0">
-                            <h2 className="text-2xl font-bold text-gray-800 dark:text-white">{fullName || currentUser.username}</h2>
-                            <p className="text-sm text-gray-500 dark:text-gray-400">@{currentUser.username}</p>
+                            <h2 className="text-2xl font-bold text-gray-800 dark:text-white">{fullName || profile?.username}</h2>
+                            <p className="text-sm text-gray-500 dark:text-gray-400">@{profile?.username}</p>
                             <div className="mt-4 flex items-center justify-center sm:justify-start gap-6 text-sm">
                                 <div>
                                     <p className="font-medium text-gray-600 dark:text-gray-300">Member Since</p>
                                     <p className="text-gray-500 dark:text-gray-400">
-                                        {new Date(currentUser.registeredAt).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                                        {new Date(user.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
                                     </p>
                                 </div>
                                 <div>
@@ -244,7 +246,7 @@ const Profile: React.FC<ProfileProps> = ({ transactionsCount, currentUser, profi
                     </div>
                     <div>
                         <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Email Address</label>
-                        <input type="email" id="email" value={currentUser.email} disabled readOnly className="mt-1 block w-full input-field bg-gray-200 dark:bg-gray-700/50 cursor-not-allowed" />
+                        <input type="email" id="email" value={user.email!} disabled readOnly className="mt-1 block w-full input-field bg-gray-200 dark:bg-gray-700/50 cursor-not-allowed" />
                     </div>
                     
                     <div className="pt-2 flex items-center gap-4">

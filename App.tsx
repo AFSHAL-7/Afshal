@@ -133,7 +133,7 @@ const AppContent: React.FC = () => {
         setIsLogoutConfirmOpen(true);
     };
     
-    const handleUpdateProfile = useCallback(async (newUsername: string, profileDetails: Omit<ProfileData, 'username' | 'id'>) => {
+    const handleUpdateProfile = async (newUsername: string, profileDetails: Omit<ProfileData, 'username' | 'id'>) => {
         if (!user || !supabase) throw new Error("No user is logged in.");
 
         const trimmedUsername = newUsername.trim();
@@ -145,7 +145,7 @@ const AppContent: React.FC = () => {
             // We only need to throw if another, unexpected error occurs.
             if (checkError && checkError.code !== 'PGRST116') { 
                 console.error("Error checking username:", checkError);
-                throw new Error(checkError.message);
+                throw checkError;
             }
 
             if (existingProfile && existingProfile.id !== user.id) {
@@ -170,12 +170,11 @@ const AppContent: React.FC = () => {
 
         if (error) {
             console.error("Profile update failed:", error);
-            throw new Error(error.message);
+            throw error;
         }
         
         await refetchProfile();
-
-    }, [user, profile, refetchProfile]);
+    };
 
     const handleOpenAddModal = () => {
         setEditingTransaction(null);
@@ -314,7 +313,7 @@ const AppContent: React.FC = () => {
             default:
                 return <Dashboard {...dashboardProps} />;
         }
-    }, [activeView, transactions, accounts, budget, user, profile, handleUpdateProfile, handleDeleteTransaction, handleLinkAccount, handleUnlinkAccount, handleSetChartFilter, chartFilter, handleClearChartFilter, handleAddTransaction, handleSetBudget, handleBulkDeleteTransactions, handleBulkCategorizeTransactions, handleOpenAddModal, handleOpenEditModal, fetchData]);
+    }, [activeView, transactions, accounts, budget, user, profile, handleDeleteTransaction, handleLinkAccount, handleUnlinkAccount, handleSetChartFilter, chartFilter, handleClearChartFilter, handleAddTransaction, handleSetBudget, handleBulkDeleteTransactions, handleBulkCategorizeTransactions, handleOpenAddModal, handleOpenEditModal, fetchData]);
 
     if (userLoading) {
         return (

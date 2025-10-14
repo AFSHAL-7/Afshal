@@ -59,6 +59,7 @@ const Settings: React.FC<SettingsProps> = ({ linkedAccounts, onLinkAccount, onUn
         }
     };
 
+
     return (
         <div className="space-y-8 max-w-4xl mx-auto">
             <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">Settings</h1>
@@ -69,10 +70,6 @@ const Settings: React.FC<SettingsProps> = ({ linkedAccounts, onLinkAccount, onUn
                     <div className="flex items-center justify-between py-4">
                         <span className="text-gray-600 dark:text-gray-300">Theme</span>
                         <ThemeToggle />
-                    </div>
-                    <div className="flex items-center justify-between py-4">
-                        <span className="text-gray-600 dark:text-gray-300">Currency</span>
-                        <span className="font-medium text-gray-800 dark:text-gray-200">INR (Indian Rupee)</span>
                     </div>
                 </div>
             </div>

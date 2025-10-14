@@ -1,7 +1,5 @@
 import React, { createContext, useContext, useMemo, ReactNode } from 'react';
 
-export const supportedCurrencies = ['INR'];
-
 interface CurrencyContextType {
     currency: string;
     formatCurrency: (amount: number, options?: Intl.NumberFormatOptions) => string;
@@ -18,12 +16,20 @@ export const CurrencyProvider: React.FC<{ children: ReactNode }> = ({ children }
             currency: currency,
         };
         
+        const localeMap: { [key: string]: string } = {
+            'INR': 'en-IN',
+            'USD': 'en-US',
+            'EUR': 'de-DE',
+            'GBP': 'en-GB',
+        };
+        const locale = localeMap[currency] || undefined;
+
         try {
-            // Using 'en-IN' locale for appropriate INR formatting (e.g., Lakh, Crore for large numbers)
-            return new Intl.NumberFormat('en-IN', { ...defaultOptions, ...options }).format(amount);
+            // Using a locale map for appropriate formatting based on currency
+            return new Intl.NumberFormat(locale, { ...defaultOptions, ...options }).format(amount);
         } catch (error) {
             console.warn(`Currency formatting failed for ${currency}, falling back to default.`, error);
-            // Fallback for safety, though it shouldn't be needed for INR
+            // Fallback for safety, though it shouldn't be needed for supported currencies
             return new Intl.NumberFormat(undefined, { ...defaultOptions, ...options }).format(amount);
         }
     };

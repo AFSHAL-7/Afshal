@@ -1,4 +1,4 @@
-import React, { createContext, useState, useContext, ReactNode, useCallback, useMemo, useEffect } from 'react';
+import React, { createContext, useState, useContext, ReactNode, useCallback, useMemo, useEffect, useRef } from 'react';
 import { supabase } from '../services/supabase';
 // Fix: Correctly import Session and User types from supabase-js.
 // The errors likely stem from an older/transitional version of the library.
@@ -23,7 +23,7 @@ const mapProfile = (data: any): ProfileData | null => {
         username: data.username,
         fullName: data.full_name, // Map from snake_case in DB
         bio: data.bio,
-        avatar: data.avatar
+        avatar: data.avatar,
     };
 }
 
@@ -33,6 +33,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const [session, setSession] = useState<Session | null>(null);
     const [profile, setProfile] = useState<ProfileData | null>(null);
     const [loading, setLoading] = useState(true);
+    const lastFetchedUserId = useRef<string | null>(null);
 
     const refetchProfile = useCallback(async () => {
         if (!session?.user || !supabase) return;
@@ -59,26 +60,36 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }
         // Fix: Correct usage of onAuthStateChange for older supabase-js v2 versions.
         const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-            setLoading(true);
-            setSession(session);
-            if (session?.user) {
-                const { data: profileData, error: profileFetchError } = await supabase
-                    .from('profiles')
-                    .select('*')
-                    .eq('id', session.user.id)
-                    .limit(1); // Fetch an array with at most one item
-                
-                if (profileFetchError) {
-                    console.error("Error fetching profile on auth change:", profileFetchError.message);
-                    setProfile(null);
+            const currentUserId = session?.user?.id ?? null;
+
+            // Only fetch profile if the user ID has actually changed.
+            // This prevents re-fetching on background events like TOKEN_REFRESHED,
+            // which could cause a race condition after a profile update.
+            if (currentUserId !== lastFetchedUserId.current) {
+                setLoading(true);
+                lastFetchedUserId.current = currentUserId;
+
+                if (currentUserId) {
+                    const { data: profileData, error: profileFetchError } = await supabase
+                        .from('profiles')
+                        .select('*')
+                        .eq('id', currentUserId)
+                        .limit(1);
+                    
+                    if (profileFetchError) {
+                        console.error("Error fetching profile on auth change:", profileFetchError.message);
+                        setProfile(null);
+                    } else {
+                        setProfile(mapProfile(profileData?.[0]));
+                    }
                 } else {
-                    // The result is an array. Use the first record if it exists.
-                    setProfile(mapProfile(profileData?.[0]));
+                    setProfile(null); // User logged out
                 }
-            } else {
-                setProfile(null);
+                setLoading(false);
             }
-            setLoading(false);
+
+            // Always update the session object itself, as it might contain a new token.
+            setSession(session);
         });
         
         return () => subscription.unsubscribe();

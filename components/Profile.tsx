@@ -244,6 +244,7 @@ const Profile: React.FC<ProfileProps> = ({ transactionsCount, user, profile, onU
                             className="mt-1 block w-full input-field"
                         ></textarea>
                     </div>
+
                     <div>
                         <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Email Address</label>
                         <input type="email" id="email" value={user.email!} disabled readOnly className="mt-1 block w-full input-field bg-gray-200 dark:bg-gray-700/50 cursor-not-allowed" />

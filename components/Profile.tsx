@@ -139,10 +139,10 @@ const Profile: React.FC<ProfileProps> = ({ transactionsCount, currentUser, profi
     
     return (
         <div className="space-y-8 max-w-4xl mx-auto">
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">My Profile</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">My Profile</h1>
 
             <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm overflow-hidden">
-                <div className="p-6 bg-gray-50 dark:bg-gray-800/50 border-b border-gray-200 dark:border-gray-700">
+                <div className="p-4 sm:p-6 bg-gray-50 dark:bg-gray-800/50 border-b border-gray-200 dark:border-gray-700">
                     <div className="flex flex-col sm:flex-row items-center sm:items-start sm:gap-6">
                         <div className="relative group flex-shrink-0">
                             {avatar ? (
@@ -158,19 +158,16 @@ const Profile: React.FC<ProfileProps> = ({ transactionsCount, currentUser, profi
                             )}
 
                             <div 
-                                className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center gap-2 text-white opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                                className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center gap-2 text-white opacity-0 group-hover:opacity-100 transition-opacity duration-200 cursor-pointer"
+                                onClick={handleAvatarClick}
+                                role="button"
+                                aria-label="Change profile picture"
                             >
-                                <button 
-                                    onClick={handleAvatarClick}
-                                    className="p-2"
-                                    aria-label="Change profile picture"
-                                >
-                                    <CameraIcon className="w-8 h-8" />
-                                </button>
+                                <CameraIcon className="w-8 h-8 pointer-events-none" />
                                 {avatar && (
                                      <button
                                         onClick={handleRemoveAvatar}
-                                        className="p-2"
+                                        className="p-2 z-10"
                                         aria-label="Remove profile picture"
                                     >
                                         <DeleteIcon className="w-7 h-7" />
@@ -204,7 +201,7 @@ const Profile: React.FC<ProfileProps> = ({ transactionsCount, currentUser, profi
                     </div>
                 </div>
                 
-                <form className="p-6 space-y-6" onSubmit={handleSaveChanges}>
+                <form className="p-4 sm:p-6 space-y-6" onSubmit={handleSaveChanges}>
                     <div>
                         <label htmlFor="fullName" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Full Name</label>
                         <input 

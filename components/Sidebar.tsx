@@ -1,13 +1,15 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { View } from '../types';
 import { User } from '../contexts/UserContext';
-import { DashboardIcon, TransactionsIcon, InsightsIcon, SettingsIcon, LogoutIcon, LogoIcon, MenuIcon, CloseIcon, ProfileIcon } from './icons/Icons';
+import { DashboardIcon, TransactionsIcon, InsightsIcon, SettingsIcon, LogoutIcon, LogoIcon, ProfileIcon } from './icons/Icons';
 
 interface SidebarProps {
     activeView: View;
     setActiveView: (view: View) => void;
     onLogout: () => void;
     currentUser: User;
+    isMobileMenuOpen: boolean;
+    setIsMobileMenuOpen: (isOpen: boolean) => void;
 }
 
 const navItems = [
@@ -18,8 +20,7 @@ const navItems = [
     { view: View.Profile, icon: ProfileIcon, label: 'Profile' },
 ];
 
-export const Sidebar: React.FC<SidebarProps> = ({ activeView, setActiveView, onLogout, currentUser }) => {
-    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+export const Sidebar: React.FC<SidebarProps> = ({ activeView, setActiveView, onLogout, isMobileMenuOpen, setIsMobileMenuOpen }) => {
 
     const NavLink: React.FC<{ view: View; icon: React.ElementType; label: string }> = ({ view, icon: Icon, label }) => (
         <button
@@ -61,22 +62,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeView, setActiveView, onL
 
     return (
         <>
-            {/* Mobile Header */}
-            <header className="lg:hidden sticky top-0 z-30 flex justify-between items-center p-4 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700">
-                <div className="flex items-center space-x-3">
-                    <LogoIcon className="h-8 w-8 text-primary" />
-                    <span className="text-xl font-bold text-gray-800 dark:text-white">SmartMoney</span>
-                </div>
-                <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="p-2 rounded-md text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
-                    {isMobileMenuOpen ? <CloseIcon className="h-6 w-6" /> : <MenuIcon className="h-6 w-6" />}
-                </button>
-            </header>
-            
             {/* Mobile Sidebar */}
             {isMobileMenuOpen && (
                  <div className="fixed inset-0 z-40 flex lg:hidden" role="dialog" aria-modal="true">
                     <div className="fixed inset-0 bg-gray-600 bg-opacity-75" aria-hidden="true" onClick={() => setIsMobileMenuOpen(false)}></div>
-                    <div className="relative flex-1 flex flex-col max-w-xs w-full bg-white dark:bg-gray-800">
+                    <div className="relative flex-1 flex flex-col max-w-xs w-full bg-white dark:bg-gray-800 animate-fade-in-scale">
                         {sidebarContent}
                     </div>
                 </div>

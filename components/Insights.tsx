@@ -29,9 +29,9 @@ const Insights: React.FC<InsightsProps> = ({ transactions }) => {
 
     return (
         <div className="space-y-6">
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">AI Insights</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">AI Insights</h1>
             
-            <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm text-center">
+            <div className="bg-white dark:bg-gray-800 p-4 sm:p-6 rounded-2xl shadow-sm text-center">
                 <div className="flex justify-center mb-4">
                     <div className="p-4 bg-primary-100 dark:bg-primary-900/50 rounded-full">
                          <SparklesIcon className="h-8 w-8 text-primary" />
@@ -61,7 +61,7 @@ const Insights: React.FC<InsightsProps> = ({ transactions }) => {
             </div>
 
             {(insight || error) && (
-                 <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm">
+                 <div className="bg-white dark:bg-gray-800 p-4 sm:p-6 rounded-2xl shadow-sm">
                     <h3 className="text-xl font-semibold mb-4 text-gray-800 dark:text-white">Your Insight</h3>
                     {error && <p className="text-red-500">{error}</p>}
                     {insight && <p className="text-gray-600 dark:text-gray-300 leading-relaxed">{insight}</p>}

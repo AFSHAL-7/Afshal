@@ -1,10 +1,11 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Transaction, TransactionCategory, TransactionType } from '../types';
-import { SearchIcon, CloseIcon, PlusIcon, SpinnerIcon, EditIcon, DeleteIcon, TagIcon, ChevronDownIcon } from './icons/Icons';
+import { SearchIcon, CloseIcon, PlusIcon, SpinnerIcon, EditIcon, DeleteIcon, TagIcon, ChevronDownIcon, FilterIcon } from './icons/Icons';
 import FloatingActionButton from './ui/FloatingActionButton';
 import { useCurrency } from '../contexts/CurrencyContext';
 import { getCategoryIcon, getCategoryBadgeStyle } from '../../utils/getCategoryIcon';
 import ConfirmModal from './modals/ConfirmModal';
+import Modal from './ui/Modal';
 
 interface TransactionsProps {
     transactions: Transaction[];
@@ -31,6 +32,7 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, onAddTransact
     const [expandedId, setExpandedId] = useState<string | null>(null);
 
     const [isAddFormVisible, setIsAddFormVisible] = useState(false);
+    const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
     
     // Form state
     const [description, setDescription] = useState('');
@@ -193,10 +195,41 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, onAddTransact
         setExpandedId(prevId => (prevId === id ? null : id));
     };
 
+    const filterControls = (
+        <div className="flex flex-col sm:flex-row flex-wrap items-center gap-4">
+            <select
+                value={filterType}
+                onChange={(e) => setFilterType(e.target.value)}
+                className="w-full sm:w-auto border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 focus:ring-primary focus:border-primary py-2 px-3"
+            >
+                <option value="All">All Types</option>
+                {Object.values(TransactionType).map(type => <option key={type} value={type}>{type}</option>)}
+            </select>
+            <select
+                value={filterCategory}
+                onChange={(e) => setFilterCategory(e.target.value)}
+                className="w-full sm:w-auto border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 focus:ring-primary focus:border-primary py-2 px-3"
+            >
+                <option value="All">All Categories</option>
+                {Object.values(TransactionCategory).map(cat => <option key={cat} value={cat}>{cat}</option>)}
+            </select>
+            <select
+                value={sortOrder}
+                onChange={(e) => setSortOrder(e.target.value)}
+                className="w-full sm:w-auto border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 focus:ring-primary focus:border-primary py-2 px-3"
+            >
+                <option value="date-desc">Sort: Date (Newest)</option>
+                <option value="date-asc">Sort: Date (Oldest)</option>
+                <option value="amount-desc">Sort: Amount (Highest)</option>
+                <option value="amount-asc">Sort: Amount (Lowest)</option>
+            </select>
+        </div>
+    );
+
 
     return (
         <div className="space-y-6">
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Transactions</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">Transactions</h1>
             
             <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm space-y-4 md:space-y-0 md:flex md:items-center md:justify-between md:gap-4">
                 <div className="relative flex-grow md:max-w-xs">
@@ -212,47 +245,30 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, onAddTransact
                     />
                 </div>
 
-                <div className="flex flex-wrap items-center gap-4">
-                    <select
-                        value={filterType}
-                        onChange={(e) => setFilterType(e.target.value)}
-                        className="w-full sm:w-auto border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 focus:ring-primary focus:border-primary py-2 px-3"
+                <div className="hidden md:flex">{filterControls}</div>
+                
+                <div className="flex items-center gap-2">
+                    <button 
+                        onClick={() => setIsFilterModalOpen(true)}
+                        className="md:hidden w-full flex-1 inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600"
                     >
-                        <option value="All">All Types</option>
-                        {Object.values(TransactionType).map(type => <option key={type} value={type}>{type}</option>)}
-                    </select>
-                     <select
-                        value={filterCategory}
-                        onChange={(e) => setFilterCategory(e.target.value)}
-                        className="w-full sm:w-auto border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 focus:ring-primary focus:border-primary py-2 px-3"
-                    >
-                        <option value="All">All Categories</option>
-                        {Object.values(TransactionCategory).map(cat => <option key={cat} value={cat}>{cat}</option>)}
-                    </select>
-                    <select
-                        value={sortOrder}
-                        onChange={(e) => setSortOrder(e.target.value)}
-                        className="w-full sm:w-auto border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 focus:ring-primary focus:border-primary py-2 px-3"
-                    >
-                        <option value="date-desc">Sort: Date (Newest)</option>
-                        <option value="date-asc">Sort: Date (Oldest)</option>
-                        <option value="amount-desc">Sort: Amount (Highest)</option>
-                        <option value="amount-asc">Sort: Amount (Lowest)</option>
-                    </select>
-                </div>
-                {!isAddFormVisible && (
-                     <button
-                        onClick={() => setIsAddFormVisible(true)}
-                        className="w-full md:w-auto flex-shrink-0 inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-white bg-primary rounded-lg hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
-                    >
-                        <PlusIcon className="h-4 w-4" />
-                        Add Transaction
+                        <FilterIcon className="h-4 w-4" />
+                        Filters
                     </button>
-                )}
+                    {!isAddFormVisible && (
+                        <button
+                            onClick={() => setIsAddFormVisible(true)}
+                            className="w-full flex-1 md:w-auto flex-shrink-0 inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-white bg-primary rounded-lg hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+                        >
+                            <PlusIcon className="h-4 w-4" />
+                            Add 
+                        </button>
+                    )}
+                </div>
             </div>
             
             {isAddFormVisible && (
-                <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm">
+                <div className="bg-white dark:bg-gray-800 p-4 sm:p-6 rounded-2xl shadow-sm">
                     <h3 className="text-xl font-semibold mb-4 text-gray-800 dark:text-white">Add New Transaction</h3>
                     <form onSubmit={handleSave}>
                         <div className="space-y-4">
@@ -561,7 +577,20 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, onAddTransact
                         ? `Are you sure you want to delete ${deletionTarget.length} selected transaction(s)? This action cannot be undone.`
                         : "Are you sure you want to delete this transaction? This action cannot be undone."
                 }
+                confirmText="Delete"
+                ConfirmIcon={DeleteIcon}
+                confirmButtonClass="bg-red-600 hover:bg-red-700 focus:ring-red-500"
             />
+            <Modal isOpen={isFilterModalOpen} onClose={() => setIsFilterModalOpen(false)} title="Filter Transactions">
+                <div className="p-6 space-y-4">
+                    {filterControls}
+                </div>
+                 <div className="p-4 bg-gray-50 dark:bg-gray-700/50 flex justify-end gap-3 rounded-b-2xl">
+                    <button type="button" onClick={() => setIsFilterModalOpen(false)} className="px-4 py-2 text-sm font-medium text-white bg-primary rounded-lg hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500">
+                        Done
+                    </button>
+                </div>
+            </Modal>
         </div>
     );
 };

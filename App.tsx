@@ -12,8 +12,9 @@ import { CurrencyProvider } from './contexts/CurrencyContext';
 import { UserProvider, useUser } from './contexts/UserContext';
 import { View, Transaction, Account, Budget, TransactionCategory, Profile as ProfileData } from './types';
 import { SmartMoneyDB, getDbForUser, fromDBAccount, toDBAccount } from './services/db';
-import { SpinnerIcon } from './components/icons/Icons';
+import { SpinnerIcon, LogoIcon, MenuIcon, CloseIcon, LogoutIcon } from './components/icons/Icons';
 import OfflineIndicator from './components/ui/OfflineIndicator';
+import ConfirmModal from './components/modals/ConfirmModal';
 
 
 const AppContent: React.FC = () => {
@@ -21,6 +22,7 @@ const AppContent: React.FC = () => {
     const [userDb, setUserDb] = useState<SmartMoneyDB | null>(null);
     const [isConnecting, setIsConnecting] = useState(true);
     const [isOffline, setIsOffline] = useState(!navigator.onLine);
+    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
     const [activeView, setActiveView] = useState<View>(View.Dashboard);
     
@@ -32,6 +34,7 @@ const AppContent: React.FC = () => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
     const [chartFilter, setChartFilter] = useState<{ type: 'date' | 'category' | null, value: string | null }>({ type: null, value: null });
+    const [isLogoutConfirmOpen, setIsLogoutConfirmOpen] = useState(false);
 
     useEffect(() => {
         const handleOffline = () => setIsOffline(true);
@@ -101,7 +104,7 @@ const AppContent: React.FC = () => {
     }, [userDb, fetchData]);
 
     const handleLogout = () => {
-        logout();
+        setIsLogoutConfirmOpen(true);
     };
 
     const handleUpdateProfile = useCallback(async (newUsername: string, profileDetails: Omit<ProfileData, 'username'>) => {
@@ -278,16 +281,47 @@ const AppContent: React.FC = () => {
     return (
         <ThemeProvider>
             <CurrencyProvider>
-                <div className="flex h-screen bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-gray-200 font-sans">
-                    <Sidebar activeView={activeView} setActiveView={setActiveView} onLogout={handleLogout} currentUser={currentUser} />
-                    <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto relative">
-                        {mainContent}
-                    </main>
+                <div className="h-screen flex flex-col bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-gray-200 font-sans">
+                     {/* Mobile Header */}
+                    <header className="lg:hidden flex-shrink-0 flex justify-between items-center p-4 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700">
+                        <div className="flex items-center space-x-3">
+                            <LogoIcon className="h-8 w-8 text-primary" />
+                            <span className="text-xl font-bold text-gray-800 dark:text-white">SmartMoney</span>
+                        </div>
+                        <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="p-2 rounded-md text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
+                            {isMobileMenuOpen ? <CloseIcon className="h-6 w-6" /> : <MenuIcon className="h-6 w-6" />}
+                        </button>
+                    </header>
+
+                    <div className="flex flex-1 overflow-hidden">
+                        <Sidebar 
+                            activeView={activeView} 
+                            setActiveView={setActiveView} 
+                            onLogout={handleLogout} 
+                            currentUser={currentUser}
+                            isMobileMenuOpen={isMobileMenuOpen}
+                            setIsMobileMenuOpen={setIsMobileMenuOpen} 
+                        />
+                        <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto relative">
+                            {mainContent}
+                        </main>
+                    </div>
+
                     <AddEditTransactionModal
                         isOpen={isModalOpen}
                         onClose={handleCloseModal}
                         onSave={handleSaveTransaction}
                         transaction={editingTransaction}
+                    />
+                    <ConfirmModal
+                        isOpen={isLogoutConfirmOpen}
+                        onClose={() => setIsLogoutConfirmOpen(false)}
+                        onConfirm={logout}
+                        title="Confirm Logout"
+                        message="Are you sure you want to log out of your account?"
+                        confirmText="Logout"
+                        ConfirmIcon={LogoutIcon}
+                        confirmButtonClass="bg-primary hover:bg-primary-700 focus:ring-primary"
                     />
                     {isOffline && <OfflineIndicator />}
                 </div>

@@ -1,6 +1,5 @@
 import React from 'react';
 import Modal from '../ui/Modal';
-import { DeleteIcon } from '../icons/Icons';
 
 interface ConfirmModalProps {
     isOpen: boolean;
@@ -8,9 +7,21 @@ interface ConfirmModalProps {
     onConfirm: () => void;
     title: string;
     message: React.ReactNode;
+    confirmText?: string;
+    confirmButtonClass?: string;
+    ConfirmIcon?: React.ElementType;
 }
 
-const ConfirmModal: React.FC<ConfirmModalProps> = ({ isOpen, onClose, onConfirm, title, message }) => {
+const ConfirmModal: React.FC<ConfirmModalProps> = ({ 
+    isOpen, 
+    onClose, 
+    onConfirm, 
+    title, 
+    message,
+    confirmText = 'Confirm',
+    confirmButtonClass = 'bg-primary hover:bg-primary-700 focus:ring-primary',
+    ConfirmIcon
+}) => {
     if (!isOpen) return null;
 
     return (
@@ -29,10 +40,10 @@ const ConfirmModal: React.FC<ConfirmModalProps> = ({ isOpen, onClose, onConfirm,
                 <button
                     type="button"
                     onClick={onConfirm}
-                    className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+                    className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-2 ${confirmButtonClass}`}
                 >
-                    <DeleteIcon className="h-4 w-4" />
-                    Delete
+                    {ConfirmIcon && <ConfirmIcon className="h-4 w-4" />}
+                    {confirmText}
                 </button>
             </div>
         </Modal>

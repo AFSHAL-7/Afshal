@@ -23,7 +23,7 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, budget, onAddTransa
 
     return (
         <div className="space-y-6">
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Dashboard</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">Dashboard</h1>
             
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 <Card title="Total Balance" amount={totalBalance} color="text-primary" />
@@ -47,7 +47,7 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, budget, onAddTransa
                 onCategoryClick={(category) => onSetChartFilter('category', category)}
             />
 
-            <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm">
+            <div className="bg-white dark:bg-gray-800 p-4 sm:p-6 rounded-2xl shadow-sm">
                  <h3 className="text-xl font-semibold mb-4 text-gray-800 dark:text-white">Recent Transactions</h3>
                  <div className="space-y-4">
                      {recentTransactions.map(transaction => (

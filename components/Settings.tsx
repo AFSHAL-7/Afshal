@@ -32,9 +32,9 @@ const Settings: React.FC<SettingsProps> = ({ linkedAccounts, onLinkAccount, onUn
 
     return (
         <div className="space-y-8 max-w-4xl mx-auto">
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Settings</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">Settings</h1>
 
-            <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm">
+            <div className="bg-white dark:bg-gray-800 p-4 sm:p-6 rounded-2xl shadow-sm">
                 <h2 className="text-xl font-semibold mb-4 text-gray-800 dark:text-white">Preferences</h2>
                 <div className="divide-y divide-gray-200 dark:divide-gray-700">
                     <div className="flex items-center justify-between py-4">
@@ -48,7 +48,7 @@ const Settings: React.FC<SettingsProps> = ({ linkedAccounts, onLinkAccount, onUn
                 </div>
             </div>
 
-            <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm">
+            <div className="bg-white dark:bg-gray-800 p-4 sm:p-6 rounded-2xl shadow-sm">
                 <div className="flex justify-between items-center mb-4">
                     <h2 className="text-xl font-semibold text-gray-800 dark:text-white">Linked Accounts</h2>
                     <button 
@@ -69,7 +69,7 @@ const Settings: React.FC<SettingsProps> = ({ linkedAccounts, onLinkAccount, onUn
                 </div>
             </div>
 
-            <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm">
+            <div className="bg-white dark:bg-gray-800 p-4 sm:p-6 rounded-2xl shadow-sm">
                  <h2 className="text-xl font-semibold mb-4 text-gray-800 dark:text-white">Notifications</h2>
                  <div className="flex items-center justify-between">
                     <p className="text-gray-600 dark:text-gray-300">Email notifications for major transactions</p>

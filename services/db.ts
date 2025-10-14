@@ -11,10 +11,9 @@ export interface DBAccount {
     icon: string;
 }
 
-// FIX: The errors indicate that `SmartMoneyDB` was not a valid Dexie instance.
-// To fix this, `SmartMoneyDB` is refactored to be a class that extends `Dexie`. This provides
-// access to necessary Dexie methods like `.open()`, `.version()`, and `.transaction()`,
-// resolving the type errors in this file and in `App.tsx`.
+// SmartMoneyDB is a Dexie subclass that defines the database schema.
+// Extending Dexie allows us to strongly type our tables and ensures
+// we have access to all of Dexie's API methods like .open(), .version(), etc.
 export class SmartMoneyDB extends Dexie {
     transactions!: Table<Transaction, string>;
     accounts!: Table<DBAccount, string>;
@@ -23,21 +22,23 @@ export class SmartMoneyDB extends Dexie {
 
     constructor(databaseName: string) {
         super(databaseName);
+        // Dexie versions must be declared in ascending order.
+        // Version 1 schema
+        this.version(1).stores({
+            transactions: 'id, date, type, category',
+            budget: 'category',
+        });
+        
+        // Version 2 schema: adds accounts and profiles tables.
+        // All existing tables must be re-declared.
         this.version(2).stores({
             transactions: 'id, date, type, category', // Index fields for efficient querying
             accounts: 'id',
             budget: 'category', // Primary key
             profiles: 'username', // Primary key
         });
-        // For backward compatibility from v1
-        this.version(1).stores({
-            transactions: 'id, date, type, category',
-            budget: 'category',
-        }).upgrade(tx => {
-            // This upgrade function will only run if the database is at version 1.
-            // It prepares the database for the new 'profiles' table in version 2.
-            // No data migration is needed here as the table is new.
-        });
+        // Dexie will automatically create the new `accounts` and `profiles` tables
+        // when upgrading from version 1 to 2. No explicit `.upgrade()` is needed.
     }
 }
 

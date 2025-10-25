@@ -28,6 +28,7 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, onAddTransact
     const [filterCategory, setFilterCategory] = useState<string>('All');
     const [sortOrder, setSortOrder] = useState<string>('date-desc');
     const [isLoading, setIsLoading] = useState(true);
+    const [displayedTransactions, setDisplayedTransactions] = useState<Transaction[]>([]);
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
     const selectAllCheckboxRef = useRef<HTMLInputElement>(null);
     const [deletionTarget, setDeletionTarget] = useState<string | string[] | null>(null);
@@ -147,8 +148,21 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, onAddTransact
         });
     }, [transactions, searchTerm, filterType, filterCategory, chartFilter, sortOrder]);
 
+    // This effect decouples filtering from rendering, allowing a loading state
+    // to be shown reliably without UI flicker.
+    useEffect(() => {
+        setIsLoading(true);
+        // Simulate a processing delay for better UX.
+        const timer = setTimeout(() => {
+            setDisplayedTransactions(processedTransactions);
+            setIsLoading(false);
+        }, 300);
+
+        return () => clearTimeout(timer);
+    }, [processedTransactions]);
+
     const summary = useMemo(() => {
-        return processedTransactions.reduce((acc, t) => {
+        return displayedTransactions.reduce((acc, t) => {
             if (t.type === TransactionType.Income) {
                 acc.income += t.amount;
             } else {
@@ -156,13 +170,8 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, onAddTransact
             }
             return acc;
         }, { income: 0, expense: 0 });
-    }, [processedTransactions]);
+    }, [displayedTransactions]);
 
-    useEffect(() => {
-        setIsLoading(true);
-        const timer = setTimeout(() => setIsLoading(false), 500); // Simulate loading
-        return () => clearTimeout(timer);
-    }, [searchTerm, filterType, filterCategory, chartFilter, sortOrder]);
     
     // Clear selection when filters change
     useEffect(() => {
@@ -170,12 +179,12 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, onAddTransact
     }, [searchTerm, filterType, filterCategory, sortOrder, chartFilter]);
 
     // Handle indeterminate state of select all checkbox
-    const areAllSelected = processedTransactions.length > 0 && selectedIds.length === processedTransactions.length;
+    const areAllSelected = displayedTransactions.length > 0 && selectedIds.length === displayedTransactions.length;
     useEffect(() => {
         if (selectAllCheckboxRef.current) {
-            selectAllCheckboxRef.current.indeterminate = selectedIds.length > 0 && selectedIds.length < processedTransactions.length;
+            selectAllCheckboxRef.current.indeterminate = selectedIds.length > 0 && selectedIds.length < displayedTransactions.length;
         }
-    }, [selectedIds, processedTransactions.length]);
+    }, [selectedIds, displayedTransactions.length]);
 
     const handleToggleSelect = (id: string) => {
         setSelectedIds(prev =>
@@ -187,7 +196,7 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, onAddTransact
         if (areAllSelected) {
             setSelectedIds([]);
         } else {
-            setSelectedIds(processedTransactions.map(t => t.id));
+            setSelectedIds(displayedTransactions.map(t => t.id));
         }
     };
     
@@ -368,7 +377,7 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, onAddTransact
                     <div className="flex justify-center items-center py-16">
                         <SpinnerIcon className="h-10 w-10 text-primary" />
                     </div>
-                ) : processedTransactions.length > 0 ? (
+                ) : displayedTransactions.length > 0 ? (
                     <>
                         <div className="hidden md:grid md:grid-cols-12 gap-4 items-center py-2 px-2 border-b border-gray-200 dark:border-gray-700 text-sm font-semibold text-gray-500 dark:text-gray-400">
                             <div className="col-span-1 flex items-center pl-2">
@@ -390,7 +399,7 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions, onAddTransact
                         </div>
 
                         <div className="divide-y divide-gray-100 dark:divide-gray-700">
-                            {processedTransactions.map(transaction => {
+                            {displayedTransactions.map(transaction => {
                                 const { description, category, date, amount, type, source } = transaction;
                                 const Icon = getCategoryIcon(category);
                                 const amountColor = type === TransactionType.Income ? 'text-green-500' : 'text-red-500';

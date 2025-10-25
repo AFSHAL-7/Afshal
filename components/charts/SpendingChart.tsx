@@ -1,15 +1,56 @@
-import React, { useMemo } from 'react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import React, { useMemo, useState } from 'react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
 import { Transaction, TransactionType } from '../../types';
 import { useCurrency } from '../../contexts/CurrencyContext';
 
-interface SpendingChartProps {
-    transactions: Transaction[];
-    onBarClick?: (date: string) => void;
+interface CustomTooltipProps {
+    active?: boolean;
+    payload?: any[];
+    label?: string;
+    formatCurrency: (amount: number, options?: Intl.NumberFormatOptions) => string;
 }
 
-const SpendingChart: React.FC<SpendingChartProps> = ({ transactions, onBarClick }) => {
+const CustomTooltip: React.FC<CustomTooltipProps> = ({ active, payload, formatCurrency }) => {
+    if (active && payload && payload.length) {
+        const data = payload[0].payload;
+        const date = new Date(data.date);
+        const formattedDate = date.toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+        });
+        const totalActivity = data.Income + data.Expense;
+
+        return (
+            <div className="bg-white dark:bg-gray-800 p-3 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700">
+                <p className="font-bold text-gray-800 dark:text-white mb-2">{formattedDate}</p>
+                <p className="text-sm text-green-500 flex justify-between">
+                    <span>Income:</span>
+                    <span className="font-medium ml-4">{formatCurrency(data.Income)}</span>
+                </p>
+                <p className="text-sm text-red-500 flex justify-between">
+                    <span>Expense:</span>
+                    <span className="font-medium ml-4">{formatCurrency(data.Expense)}</span>
+                </p>
+                <div className="border-t border-gray-200 dark:border-gray-600 my-2"></div>
+                <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 flex justify-between">
+                    <span>Total Activity:</span>
+                    <span className="ml-4">{formatCurrency(totalActivity)}</span>
+                </p>
+            </div>
+        );
+    }
+    return null;
+};
+
+interface SpendingChartProps {
+    transactions: Transaction[];
+}
+
+const SpendingChart: React.FC<SpendingChartProps> = ({ transactions }) => {
     const { formatCurrency } = useCurrency();
+    const [activeIndex, setActiveIndex] = useState<number | null>(null);
+
     const data = useMemo(() => {
         const last7Days = Array.from({ length: 7 }, (_, i) => {
             const d = new Date();
@@ -35,9 +76,11 @@ const SpendingChart: React.FC<SpendingChartProps> = ({ transactions, onBarClick 
     }, [transactions]);
 
     const handleChartClick = (payload: any) => {
-        if (payload && payload.activePayload && payload.activePayload[0] && onBarClick) {
-            // Pass the full date string from the payload
-            onBarClick(payload.activePayload[0].payload.date);
+       if (payload && payload.activeTooltipIndex !== undefined) {
+            const index = payload.activeTooltipIndex;
+            setActiveIndex(prevIndex => (prevIndex === index ? null : index));
+        } else {
+            setActiveIndex(null);
         }
     }
 
@@ -61,17 +104,20 @@ const SpendingChart: React.FC<SpendingChartProps> = ({ transactions, onBarClick 
                         })}
                     />
                     <Tooltip
-                        contentStyle={{
-                            backgroundColor: 'rgba(31, 41, 55, 0.8)',
-                            borderColor: '#4b5563',
-                            borderRadius: '0.5rem',
-                        }}
-                        labelStyle={{ color: '#f9fafb' }}
-                        formatter={(value: number) => formatCurrency(value)}
+                        content={<CustomTooltip formatCurrency={formatCurrency} />}
+                        cursor={{ fill: 'rgba(128, 128, 128, 0.1)', radius: 4 }}
                     />
                     <Legend />
-                    <Bar dataKey="Income" fill="#22c55e" radius={[4, 4, 0, 0]} cursor="pointer" />
-                    <Bar dataKey="Expense" fill="#ef4444" radius={[4, 4, 0, 0]} cursor="pointer" />
+                    <Bar dataKey="Income" radius={[4, 4, 0, 0]}>
+                        {data.map((entry, index) => (
+                            <Cell key={`cell-income-${index}`} cursor="pointer" fill={activeIndex === index ? '#15803d' : '#22c55e'} />
+                        ))}
+                    </Bar>
+                    <Bar dataKey="Expense" radius={[4, 4, 0, 0]}>
+                        {data.map((entry, index) => (
+                            <Cell key={`cell-expense-${index}`} cursor="pointer" fill={activeIndex === index ? '#b91c1c' : '#ef4444'} />
+                        ))}
+                    </Bar>
                 </BarChart>
             </ResponsiveContainer>
         </div>

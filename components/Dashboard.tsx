@@ -33,7 +33,7 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, budget, onAddTransa
 
             <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
                 <div className="lg:col-span-3">
-                    <SpendingChart transactions={transactions} onBarClick={(date) => onSetChartFilter('date', date)} />
+                    <SpendingChart transactions={transactions} />
                 </div>
                 <div className="lg:col-span-2">
                     <CategoryPieChart transactions={transactions} onSliceClick={(category) => onSetChartFilter('category', category)} />

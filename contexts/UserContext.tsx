@@ -58,15 +58,15 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             setLoading(false);
             return;
         }
-        // Fix: Correct usage of onAuthStateChange for older supabase-js v2 versions.
+
         const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
             const currentUserId = session?.user?.id ?? null;
 
-            // Only fetch profile if the user ID has actually changed.
-            // This prevents re-fetching on background events like TOKEN_REFRESHED,
-            // which could cause a race condition after a profile update.
+            // Always update the session object itself, as it might contain a new token.
+            setSession(session);
+
+            // Only fetch profile if the user ID has actually changed to prevent unnecessary fetches.
             if (currentUserId !== lastFetchedUserId.current) {
-                setLoading(true);
                 lastFetchedUserId.current = currentUserId;
 
                 if (currentUserId) {
@@ -85,15 +85,17 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 } else {
                     setProfile(null); // User logged out
                 }
+            }
+            
+            // This is the crucial part. After the first callback from onAuthStateChange,
+            // we know the initial auth state, so we can stop the main loading spinner.
+            if (loading) {
                 setLoading(false);
             }
-
-            // Always update the session object itself, as it might contain a new token.
-            setSession(session);
         });
         
         return () => subscription.unsubscribe();
-    }, []);
+    }, [loading]);
 
 
     const login = async (email: string, password: string) => {
